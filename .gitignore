@@ -1,0 +1,6 @@
+node_modules/
+lib/
+debug-frames/
+debug-*.png
+.playwright-cli/
+*.tsbuildinfo
