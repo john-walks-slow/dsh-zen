@@ -1,11 +1,13 @@
 /**
  * ZenSettingsSection — settings panel for configuring Zen view display.
+ * Shows daily/weekly Zen stats and Zen level.
  * @module dsh-zen-tracker/components/ZenSettingsSection
  */
 
 import React from "react";
 import type { ZenSettingsStore } from "../zen-settings";
-import type { PetStore } from "../pet-store";
+import type { ForegroundStoreState } from "../foreground-tracker";
+import { formatDuration } from "../foreground-tracker";
 
 const CSS = `
 .dsh-zen-settings {
@@ -28,6 +30,78 @@ const CSS = `
 	color: var(--dsw-alias-label-tertiary);
 	margin-bottom: 12px;
 }
+
+/* ── Zen stats card ─────────────────────────────────────────────────────── */
+
+.dsh-zen-statsCard {
+	padding: 16px;
+	border-radius: 12px;
+	background: var(--dsw-alias-interactive-bg-hover);
+	margin-bottom: 12px;
+}
+
+.dsh-zen-statsGrid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 16px;
+}
+
+.dsh-zen-statBox {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.dsh-zen-statLabel {
+	font-size: 12px;
+	color: var(--dsw-alias-label-caption);
+}
+
+.dsh-zen-statValue {
+	font-size: 24px;
+	font-weight: 700;
+	color: var(--dsw-alias-label-primary);
+	font-variant-numeric: tabular-nums;
+	line-height: 32px;
+}
+
+.dsh-zen-statSub {
+	font-size: 11px;
+	color: var(--dsw-alias-label-tertiary);
+}
+
+.dsh-zen-levelRow {
+	margin-top: 16px;
+	padding-top: 12px;
+	border-top: 1px solid var(--dsw-alias-border-l2);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.dsh-zen-levelLeft {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.dsh-zen-levelName {
+	font-size: 15px;
+	font-weight: 600;
+	color: var(--dsw-alias-label-primary);
+}
+
+.dsh-zen-levelDesc {
+	font-size: 12px;
+	color: var(--dsw-alias-label-caption);
+}
+
+.dsh-zen-levelBadge {
+	font-size: 28px;
+	line-height: 1;
+}
+
+/* ── Toggle items ───────────────────────────────────────────────────────── */
 
 .dsh-zen-settingsItem {
 	display: flex;
@@ -79,72 +153,6 @@ const CSS = `
 .dsh-zen-settingsSwitch[data-on="true"] .dsh-zen-settingsSwitchKnob {
 	left: 18px;
 }
-
-/* ── Pet import section ──────────────────────────────────────────────────── */
-
-.dsh-zen-petSection {
-	padding: 12px 0;
-	border-bottom: 1px solid var(--dsw-alias-border-l2);
-}
-
-.dsh-zen-petRow {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 8px;
-}
-
-.dsh-zen-petName {
-	font-size: 14px;
-	color: var(--dsw-alias-label-secondary);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.dsh-zen-petActions {
-	display: flex;
-	gap: 8px;
-	flex: none;
-}
-
-.dsh-zen-petBtn {
-	padding: 4px 12px;
-	font-size: 13px;
-	line-height: 20px;
-	border-radius: 6px;
-	border: 1px solid var(--dsw-alias-border-l2);
-	background: var(--dsw-alias-interactive-bg-hover);
-	color: var(--dsw-alias-label-secondary);
-	cursor: pointer;
-	transition: background 0.12s;
-}
-
-.dsh-zen-petBtn:hover {
-	background: var(--dsw-alias-interactive-bg-active);
-	color: var(--dsw-alias-label-primary);
-}
-
-.dsh-zen-petBtn[data-variant="primary"] {
-	background: var(--dsw-alias-state-business-primary);
-	color: #fff;
-	border-color: transparent;
-}
-
-.dsh-zen-petBtn[data-variant="primary"]:hover {
-	opacity: 0.88;
-}
-
-.dsh-zen-petHint {
-	font-size: 12px;
-	color: var(--dsw-alias-label-caption);
-	margin-top: 6px;
-	line-height: 18px;
-}
-
-.dsh-zen-petFileInput {
-	display: none;
-}
 `;
 
 if (typeof document !== "undefined" && !document.querySelector("style[data-plugin-css=\"dsh-zen-tracker/settings\"]")) {
@@ -154,9 +162,75 @@ if (typeof document !== "undefined" && !document.querySelector("style[data-plugi
 	document.head.appendChild(tag);
 }
 
+// ── Zen level system ────────────────────────────────────────────────────────
+
+/** Daily Zen levels based on today's Zen percentage. */
+const ZEN_LEVELS = [
+	{ min: 95, emoji: "🧘", nameZh: "禅宗大师", nameEn: "Zen Master", descZh: "几乎不盯屏，深得禅意", descEn: "Barely glanced at the screen" },
+	{ min: 90, emoji: "🍵", nameZh: "茶道行者", nameEn: "Tea Adept", descZh: "悠闲自在，盯屏极少", descEn: "Relaxed and minimal screen time" },
+	{ min: 80, emoji: "🌿", nameZh: "青苔隐士", nameEn: "Moss Hermit", descZh: "淡定从容，偶尔瞄一眼", descEn: "Calm, checking in occasionally" },
+	{ min: 60, emoji: "🌀", nameZh: "半醒半梦", nameEn: "Half Dreaming", descZh: "还在适应，会忍不住看看", descEn: "Still adapting, peeking sometimes" },
+	{ min: 40, emoji: "🐝", nameZh: "忙碌蜜蜂", nameEn: "Busy Bee", descZh: "盯屏较多，试着放手吧", descEn: "Quite a bit of screen staring" },
+	{ min: 20, emoji: "👀", nameZh: "盯屏狂魔", nameEn: "Screen Goblin", descZh: "目不转睛，该歇歇了", descEn: "Eyes glued to the screen" },
+	{ min: 0, emoji: "😵", nameZh: "彻底沦陷", nameEn: "Fully Lost", descZh: "全程盯屏，无药可救", descEn: "Glued to screen the entire time" },
+];
+
+function getZenLevel(zenPct: number) {
+	for (const lvl of ZEN_LEVELS) {
+		if (zenPct >= lvl.min) return lvl;
+	}
+	return ZEN_LEVELS[ZEN_LEVELS.length - 1];
+}
+
+// ── helpers ─────────────────────────────────────────────────────────────────
+
+const DAY_MS = 24 * 60 * 60 * 1_000;
+
+function startOfToday(): number {
+	const now = new Date();
+	now.setHours(0, 0, 0, 0);
+	return now.getTime();
+}
+
+function startOfWeek(): number {
+	// Week starts Monday
+	const now = new Date();
+	const day = now.getDay(); // 0=Sun..6=Sat
+	const diff = day === 0 ? 6 : day - 1;
+	now.setDate(now.getDate() - diff);
+	now.setHours(0, 0, 0, 0);
+	return now.getTime();
+}
+
+function computePeriodStats(sessions: ForegroundStoreState["sessions"], sinceMs: number, liveDelta: { fgDelta: number; runDelta: number }) {
+	let fgMs = 0;
+	let totalMs = 0;
+	for (const stats of Object.values(sessions)) {
+		const sessionStart = stats.sessionStartMs;
+		if (sessionStart < sinceMs) continue;
+		const run = stats.runningMs ?? 0;
+		const fg = Math.min(stats.foregroundMs ?? 0, run);
+		fgMs += fg;
+		totalMs += run;
+	}
+	// Add live delta (from current un-flushed segment)
+	fgMs += liveDelta.fgDelta;
+	totalMs += liveDelta.runDelta;
+	fgMs = Math.min(fgMs, totalMs);
+	const ratio = totalMs > 0 ? Math.round((fgMs / totalMs) * 100) : 0;
+	const zenPct = 100 - ratio;
+	return { fgMs, totalMs, ratio, zenPct };
+}
+
+// ── component ────────────────────────────────────────────────────────────────
+
 interface ZenSettingsSectionProps {
 	zenSettingsStore: ZenSettingsStore;
-	petStore: PetStore;
+	foregroundStore: {
+		getSnapshot: () => ForegroundStoreState;
+		getLiveMs: () => { fgDelta: number; runDelta: number };
+		subscribe: (fn: () => void) => () => void;
+	};
 	t: (key: string, params?: Record<string, any>) => string;
 }
 
@@ -166,68 +240,64 @@ interface ToggleItem {
 }
 
 const ITEMS: ToggleItem[] = [
-	{ key: "showPet", labelKey: "settings.showPet" },
-	{ key: "showEmoji", labelKey: "settings.showEmoji" },
 	{ key: "showStatus", labelKey: "settings.showStatus" },
 	{ key: "showUserMessage", labelKey: "settings.showUserMessage" },
+	{ key: "showPrevReply", labelKey: "settings.showPrevReply" },
+	{ key: "showCurrentReply", labelKey: "settings.showCurrentReply" },
 	{ key: "showAiReply", labelKey: "settings.showAiReply" },
 	{ key: "showTurnStats", labelKey: "settings.showTurnStats" },
 	{ key: "showForegroundTooltip", labelKey: "settings.showForegroundTooltip" },
+	{ key: "autoEnterZen", labelKey: "settings.autoEnterZen" },
+	{ key: "autoExitZen", labelKey: "settings.autoExitZen" },
 ];
 
 export const ZenSettingsSection = React.memo(function ZenSettingsSection(props: ZenSettingsSectionProps) {
-	const { zenSettingsStore, petStore, t } = props;
+	const { zenSettingsStore, foregroundStore, t } = props;
 
 	const [, forceUpdate] = React.useReducer((c: number) => c + 1, 0);
 	React.useEffect(() => zenSettingsStore.subscribe(forceUpdate), [zenSettingsStore]);
-	React.useEffect(() => petStore.subscribe(forceUpdate), [petStore]);
+	React.useEffect(() => foregroundStore.subscribe(forceUpdate), [foregroundStore]);
 
 	const settings = zenSettingsStore.getSnapshot();
-	const petMeta = petStore.getMeta();
-	const isCustom = petStore.isCustom();
+	const statsState = foregroundStore.getSnapshot();
+	const liveDelta = foregroundStore.getLiveMs();
 
-	const fileInputRef = React.useRef<HTMLInputElement>(null);
+	const todayStats = computePeriodStats(statsState.sessions, startOfToday(), liveDelta);
+	const weekStats = computePeriodStats(statsState.sessions, startOfWeek(), liveDelta);
+	const todayLevel = getZenLevel(todayStats.zenPct);
+	const isZh = (t("zen.zen") === "禅");
 
-	const handleFile = React.useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
-		if (!file) return;
-		try {
-			await petStore.importSprite(file);
-		} catch (err) {
-			console.error("[zen-tracker] Failed to import pet:", err);
-			alert(t("pet.importError"));
-		}
-		// Reset input so the same file can be re-selected
-		e.target.value = "";
-	}, [petStore, t]);
+	// Live tick
+	const [, clockTick] = React.useReducer((c: number) => c + 1, 0);
+	React.useEffect(() => {
+		const id = setInterval(clockTick, 5_000);
+		return () => clearInterval(id);
+	}, []);
 
 	return React.createElement("div", { className: "dsh-zen-settings" },
 		React.createElement("div", { className: "dsh-zen-settingsTitle" }, t("settings.title")),
 		React.createElement("div", { className: "dsh-zen-settingsDesc" }, t("settings.desc")),
-		// Pet import section
-		React.createElement("div", { className: "dsh-zen-petSection" },
-			React.createElement("div", { className: "dsh-zen-petRow" },
-				React.createElement("span", { className: "dsh-zen-petName" }, petMeta.name),
-				React.createElement("div", { className: "dsh-zen-petActions" },
-					isCustom && React.createElement("button", {
-						className: "dsh-zen-petBtn",
-						onClick: () => petStore.resetSprite(),
-					}, t("pet.reset")),
-					React.createElement("button", {
-						className: "dsh-zen-petBtn",
-						"data-variant": "primary",
-						onClick: () => fileInputRef.current?.click(),
-					}, t("pet.import")),
+		// Zen stats card
+		React.createElement("div", { className: "dsh-zen-statsCard" },
+			React.createElement("div", { className: "dsh-zen-statsGrid" },
+				React.createElement("div", { className: "dsh-zen-statBox" },
+					React.createElement("div", { className: "dsh-zen-statLabel" }, t("zen.todayZen")),
+					React.createElement("div", { className: "dsh-zen-statValue" }, todayStats.zenPct + "%"),
+					React.createElement("div", { className: "dsh-zen-statSub" }, `${t("zen.foreground")} ${formatDuration(todayStats.fgMs)} · ${t("zen.total")} ${formatDuration(todayStats.totalMs)}`),
+				),
+				React.createElement("div", { className: "dsh-zen-statBox" },
+					React.createElement("div", { className: "dsh-zen-statLabel" }, t("zen.weekZen")),
+					React.createElement("div", { className: "dsh-zen-statValue" }, weekStats.zenPct + "%"),
+					React.createElement("div", { className: "dsh-zen-statSub" }, `${t("zen.foreground")} ${formatDuration(weekStats.fgMs)} · ${t("zen.total")} ${formatDuration(weekStats.totalMs)}`),
 				),
 			),
-			React.createElement("div", { className: "dsh-zen-petHint" }, t("pet.hint")),
-			React.createElement("input", {
-				ref: fileInputRef,
-				type: "file",
-				accept: "image/webp,image/png,image/gif",
-				className: "dsh-zen-petFileInput",
-				onChange: handleFile,
-			}),
+			React.createElement("div", { className: "dsh-zen-levelRow" },
+				React.createElement("div", { className: "dsh-zen-levelLeft" },
+					React.createElement("div", { className: "dsh-zen-levelName" }, isZh ? todayLevel.nameZh : todayLevel.nameEn),
+					React.createElement("div", { className: "dsh-zen-levelDesc" }, isZh ? todayLevel.descZh : todayLevel.descEn),
+				),
+				React.createElement("div", { className: "dsh-zen-levelBadge" }, todayLevel.emoji),
+			),
 		),
 		// Toggle items
 		ITEMS.map((item) =>

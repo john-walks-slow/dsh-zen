@@ -105,9 +105,39 @@ export interface ChatHideToggleProps {
 	t: (key: string, params?: Record<string, any>) => string;
 }
 
+/** Module-level ref to setView function, populated when ChatHideToggle mounts. */
+let _setView: ((view: string) => void) | null = null;
+
+/** Switch to a view by id. Returns true if setView is available. */
+export function switchView(view: string): boolean {
+	if (_setView) { _setView(view); return true; }
+	return false;
+}
+
 export const ChatHideToggle = React.memo(function ChatHideToggle(props: ChatHideToggleProps) {
 	const { t } = props;
 	const [active, setActive] = React.useState(() => loadToggleState());
+
+	// Capture setView from parent fiber for auto-switch feature
+	React.useEffect(() => {
+		try {
+			const el = document.querySelector(".dsh-zen-chatHideBtn");
+			if (!el) return;
+			const fk = Object.keys(el).find((k) => k.startsWith("__reactFiber"));
+			if (!fk) return;
+			let fiber = (el as any)[fk];
+			let depth = 0;
+			while (fiber && depth < 30) {
+				const mp = fiber.memoizedProps;
+				if (mp && mp.actions && typeof mp.actions.setView === "function") {
+					_setView = mp.actions.setView;
+					break;
+				}
+				fiber = fiber.return;
+				depth++;
+			}
+		} catch { /* ignore */ }
+	}, []);
 
 	// Sync body attribute
 	React.useEffect(() => {

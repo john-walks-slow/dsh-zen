@@ -13,9 +13,8 @@
 import { NS, zh, en } from "./locales";
 import { initForegroundTracker, type ForegroundStoreState } from "./foreground-tracker";
 import { createZenSettingsStore, type ZenSettingsStore } from "./zen-settings";
-import { createPetStore } from "./pet-store";
 import { ZenView } from "./components/ZenView";
-import { ChatHideToggle } from "./components/ChatHideToggle";
+import { ChatHideToggle, switchView } from "./components/ChatHideToggle";
 import { ZenSettingsSection } from "./components/ZenSettingsSection";
 
 /** Cordis plugin name. */
@@ -23,6 +22,45 @@ const name = "zen-tracker";
 
 /** Required services. */
 const inject = ["slots", "sessions", "locale"];
+
+/** Watch running state transitions and auto-switch Zen tab. */
+function initAutoZenSwitcher(ctx: any, zenSettingsStore: ZenSettingsStore): void {
+	const sessions = (ctx as any).sessions as { list: { getSnapshot: () => any; subscribe: (fn: () => void) => () => void } };
+
+	let prevRunning: boolean | null = null;
+	let prevSessionId: string | null = null;
+
+	function check() {
+		const snap = sessions.list.getSnapshot();
+		const currentId = snap.current;
+		const session = currentId ? snap.byId[currentId] : null;
+		const running = session?.running ?? false;
+
+		// Reset tracking when session changes
+		if (currentId !== prevSessionId) {
+			prevSessionId = currentId;
+			prevRunning = running;
+			return;
+		}
+
+		const settings = zenSettingsStore.getSnapshot();
+
+		if (prevRunning === false && running === true) {
+			// Task started
+			if (settings.autoEnterZen) switchView("zen");
+		} else if (prevRunning === true && running === false) {
+			// Task completed
+			if (settings.autoExitZen) switchView("chat");
+		}
+
+		prevRunning = running;
+	}
+
+	const unsub = sessions.list.subscribe(check);
+	check();
+
+	ctx.effect(() => () => unsub(), "zen-tracker: auto zen switcher");
+}
 
 /**
  * Mount the zen-tracker plugin.
@@ -39,9 +77,8 @@ function apply(ctx: any) {
 	// ── Zen settings store ──────────────────────────────────────────────
 	const zenSettingsStore = createZenSettingsStore();
 
-	// ── Pet store (IndexedDB-backed spritesheet manager) ────────────────
-	const petStore = createPetStore();
-	petStore.init();
+	// ── Auto Zen tab switcher ───────────────────────────────────────────
+	initAutoZenSwitcher(ctx, zenSettingsStore);
 
 	// ── MarkdownText component (from dsh-client-ui-primitives) ───────────
 	let MarkdownText: any = null;
@@ -60,7 +97,6 @@ function apply(ctx: any) {
 			foregroundStore,
 			MarkdownText,
 			zenSettingsStore,
-			petStore,
 		}),
 	}, ZenView));
 
@@ -84,7 +120,7 @@ function apply(ctx: any) {
 		locale: NS,
 		inject: () => ({
 			zenSettingsStore,
-			petStore,
+			foregroundStore,
 			t,
 		}),
 	}, ZenSettingsSection));

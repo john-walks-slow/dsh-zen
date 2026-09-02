@@ -3,9 +3,9 @@
  * long each session stays in the foreground ("窗口在前台 + 会话在前台"),
  * regardless of which view tab the user is on.
  *
- * The tracker subscribes to Page Visibility API, window focus/blur, and the
- * sessions list to detect foreground state transitions. Accumulated time is
- * persisted to localStorage via a snapshot store.
+ * Two independent counters:
+ * - runningMs: accumulates whenever session.running=true (regardless of visibility)
+ * - foregroundMs: accumulates only when running=true AND window visible AND not on Zen tab
  *
  * @module dsh-zen-tracker/foreground-tracker
  */
@@ -15,24 +15,18 @@ import type { SessionId } from "@deepseek-ai/dsh-api-remotes/client";
 
 // ── types ──────────────────────────────────────────────────────────────────
 
-/** Per-session foreground statistics. */
 export interface SessionStats {
-	/** Accumulated foreground milliseconds. */
 	foregroundMs: number;
-	/** Timestamp when the session first appeared in the list (ms epoch). */
+	runningMs: number;
 	sessionStartMs: number;
-	/** Timestamp when the session finished (running false→true); null = still running. */
 	sessionEndMs: number | null;
-	/** Session title snapshot for historical display. */
 	title: string;
 }
 
-/** Whole-store shape persisted under `dsh.zen-tracker.stats`. */
 export interface ForegroundStoreState {
 	sessions: Record<string, SessionStats>;
 }
 
-/** The observable snapshot store interface (subset of createSnapshotStore output). */
 interface SnapshotStore<T> {
 	getSnapshot(): T;
 	subscribe(fn: () => void): () => void;
@@ -40,7 +34,6 @@ interface SnapshotStore<T> {
 	set(state: T): void;
 }
 
-/** Minimal sessions list snapshot we need. */
 interface SessionListSnapshot {
 	current?: SessionId;
 	byId: Record<string, {
@@ -55,9 +48,8 @@ interface SessionListSnapshot {
 
 const FLUSH_INTERVAL_MS = 5_000;
 const MAX_SESSIONS = 200;
-const PRUNE_AFTER_MS = 30 * 24 * 60 * 60 * 1_000; // 30 days
+const PRUNE_AFTER_MS = 30 * 24 * 60 * 60 * 1_000;
 
-/** Format milliseconds as a compact human-readable duration. */
 export function formatDuration(ms: number): string {
 	if (ms < 1_000) return "0s";
 	const totalSec = Math.floor(ms / 1_000);
@@ -72,75 +64,64 @@ export function formatDuration(ms: number): string {
 
 // ── tracker ────────────────────────────────────────────────────────────────
 
-/**
- * Create and mount the foreground tracker. The tracker lives for the plugin's
- * entire lifetime; cleanup rides the caller's ctx.effect.
- *
- * @param ctx - client root context.
- * @returns the snapshot store so view components can read stats.
- */
-export function initForegroundTracker(ctx: Context): SnapshotStore<ForegroundStoreState> {
+export function initForegroundTracker(ctx: Context): SnapshotStore<ForegroundStoreState> & {
+	getLiveMs: () => { fgDelta: number; runDelta: number };
+} {
 	const sessions = (ctx as any).sessions as {
 		list: SnapshotStore<SessionListSnapshot>;
 	};
-
-	// ── persisted store ──────────────────────────────────────────────────
 
 	const persistKey = "dsh.zen-tracker.stats";
 
 	const loadInitial = (): ForegroundStoreState => {
 		try {
 			const raw = localStorage.getItem(persistKey);
-			if (raw) return JSON.parse(raw);
-		} catch { /* ignore corrupt data */ }
+			if (raw) {
+				const parsed = JSON.parse(raw);
+				const out: Record<string, SessionStats> = {};
+				for (const [id, s] of Object.entries(parsed.sessions ?? {})) {
+					out[id] = {
+						...s,
+						runningMs: (s as any).runningMs ?? (s as any).foregroundMs ?? 0,
+					} as SessionStats;
+				}
+				return { sessions: out };
+			}
+		} catch { /* ignore */ }
 		return { sessions: {} };
 	};
 
 	let state: ForegroundStoreState = loadInitial();
-
 	const listeners = new Set<() => void>();
 
-	const notify = () => {
-		for (const fn of listeners) fn();
-	};
-
-	const persist = () => {
-		try {
-			localStorage.setItem(persistKey, JSON.stringify(state));
-		} catch { /* quota or private mode */ }
-	};
+	const notify = () => { for (const fn of listeners) fn(); };
+	const persist = () => { try { localStorage.setItem(persistKey, JSON.stringify(state)); } catch { /* ignore */ } };
 
 	const store: SnapshotStore<ForegroundStoreState> = {
 		getSnapshot: () => state,
-		subscribe: (fn) => {
-			listeners.add(fn);
-			return () => { listeners.delete(fn); };
-		},
-		update: (updater) => {
-			state = updater(state);
-			persist();
-			notify();
-		},
-		set: (next) => {
-			state = next;
-			persist();
-			notify();
-		},
+		subscribe: (fn) => { listeners.add(fn); return () => { listeners.delete(fn); }; },
+		update: (updater) => { state = updater(state); persist(); notify(); },
+		set: (next) => { state = next; persist(); notify(); },
 	};
 
-	// ── tracking state ──────────────────────────────────────────────────
+	// ── tracking state: two independent segments ───────────────────────
 
 	let activeSessionId: SessionId | null = null;
-	let lastStartMs: number | null = null;
+	let runSegStart: number | null = null;  // non-null = running segment active
+	let fgSegStart: number | null = null;   // non-null = foreground segment active
+	let wasRunning: boolean = false;
 
-	/** Flush the current foreground segment into the store. */
-	function flushForeground(sessionId: SessionId, startMs: number): void {
-		const delta = Date.now() - startMs;
-		if (delta <= 0) return;
+	/** Flush accumulated deltas into the store. null segment = skip. */
+	function flush(sessionId: SessionId, runStart: number | null, fgStart: number | null): void {
+		const now = Date.now();
+		const runDelta = runStart !== null ? now - runStart : 0;
+		const fgDelta = fgStart !== null ? now - fgStart : 0;
+		if (runDelta <= 0 && fgDelta <= 0) return;
 		store.update((prev) => {
 			const existing = prev.sessions[sessionId] ?? {
 				foregroundMs: 0,
-				sessionStartMs: Date.now(),
+				runningMs: 0,
+				sessionStartMs: now,
 				sessionEndMs: null,
 				title: sessionId,
 			};
@@ -149,127 +130,108 @@ export function initForegroundTracker(ctx: Context): SnapshotStore<ForegroundSto
 					...prev.sessions,
 					[sessionId]: {
 						...existing,
-						foregroundMs: existing.foregroundMs + delta,
+						foregroundMs: existing.foregroundMs + Math.max(0, fgDelta),
+						runningMs: (existing.runningMs ?? 0) + Math.max(0, runDelta),
 					},
 				},
 			};
 		});
 	}
 
-	/** Prune sessions older than 30 days, keeping at most MAX_SESSIONS. */
 	function pruneIfNeeded(): void {
 		const now = Date.now();
 		const entries = Object.entries(state.sessions);
 		if (entries.length <= MAX_SESSIONS) {
-			// Only prune by age
 			let changed = false;
 			const kept: Record<string, SessionStats> = {};
 			for (const [id, stats] of entries) {
-				const age = now - stats.sessionStartMs;
-				if (age > PRUNE_AFTER_MS) { changed = true; continue; }
+				if (now - stats.sessionStartMs > PRUNE_AFTER_MS) { changed = true; continue; }
 				kept[id] = stats;
 			}
 			if (changed) store.set({ sessions: kept });
 			return;
 		}
-		// Sort by sessionStartMs desc, keep top MAX_SESSIONS
 		entries.sort((a, b) => b[1].sessionStartMs - a[1].sessionStartMs);
 		const kept: Record<string, SessionStats> = {};
 		for (const [id, stats] of entries.slice(0, MAX_SESSIONS)) {
-			const age = now - stats.sessionStartMs;
-			if (age <= PRUNE_AFTER_MS) kept[id] = stats;
+			if (now - stats.sessionStartMs <= PRUNE_AFTER_MS) kept[id] = stats;
 		}
 		store.set({ sessions: kept });
 	}
 
-	/** Ensure a session exists in the store (called when first seen in list). */
 	function ensureSession(sessionId: SessionId, title: string, running: boolean): void {
 		store.update((prev) => {
 			if (prev.sessions[sessionId]) {
 				const existing = prev.sessions[sessionId];
-				// running→finished transition
 				if (existing.sessionEndMs === null && !running) {
-					return {
-						sessions: {
-							...prev.sessions,
-							[sessionId]: {
-								...existing,
-								title,
-								sessionEndMs: Date.now(),
-							},
-						},
-					};
+					return { sessions: { ...prev.sessions, [sessionId]: { ...existing, title, sessionEndMs: Date.now() } } };
 				}
-				// finished→running restart (clear sessionEndMs)
 				if (existing.sessionEndMs !== null && running) {
-					return {
-						sessions: {
-							...prev.sessions,
-							[sessionId]: { ...existing, title, sessionEndMs: null },
-						},
-					};
+					return { sessions: { ...prev.sessions, [sessionId]: { ...existing, title, sessionEndMs: null } } };
 				}
-				// Update title if changed
 				if (existing.title !== title) {
-					return {
-						sessions: {
-							...prev.sessions,
-							[sessionId]: { ...existing, title },
-						},
-					};
+					return { sessions: { ...prev.sessions, [sessionId]: { ...existing, title } } };
 				}
 				return prev;
 			}
 			return {
 				sessions: {
 					...prev.sessions,
-					[sessionId]: {
-						foregroundMs: 0,
-						sessionStartMs: Date.now(),
-						sessionEndMs: running ? null : Date.now(),
-						title,
-					},
+					[sessionId]: { foregroundMs: 0, runningMs: 0, sessionStartMs: Date.now(), sessionEndMs: running ? null : Date.now(), title },
 				},
 			};
 		});
 	}
 
-	/** Core re-evaluation: check visibility + session selection. */
 	function reevaluate(): void {
-		// Zen tab does not count as "staring at screen"
-		const isZenTabActive = typeof document !== "undefined" &&
-			document.querySelector(".dsh-zen-root") !== null;
-
-		const isWindowVisible = !isZenTabActive &&
-			typeof document !== "undefined" &&
-			!document.hidden &&
-			document.hasFocus();
+		const isZenTabActive = typeof document !== "undefined" && document.querySelector(".dsh-zen-root") !== null;
+		const isWindowVisible = !isZenTabActive && typeof document !== "undefined" && !document.hidden && document.hasFocus();
 
 		const listSnap = sessions.list.getSnapshot();
 		const currentId = listSnap.current ?? null;
+		const currentSession = currentId ? listSnap.byId[currentId] : null;
+		const isRunning = currentSession?.running ?? false;
 
-		// Detect new sessions and running→finished transitions
 		for (const [id, summary] of Object.entries(listSnap.byId)) {
 			ensureSession(id, summary.displayTitle, summary.running);
 		}
 
-		// Handle session switch
+		// Session switch — flush old session, reset
 		if (currentId !== activeSessionId) {
-			if (activeSessionId !== null && lastStartMs !== null) {
-				flushForeground(activeSessionId, lastStartMs);
-				lastStartMs = null;
-			}
+			if (activeSessionId !== null) flush(activeSessionId, runSegStart, fgSegStart);
 			activeSessionId = currentId;
+			runSegStart = null;
+			fgSegStart = null;
+			wasRunning = isRunning;
 		}
 
-		// Handle visibility within the same session
-		if (activeSessionId !== null) {
-			if (isWindowVisible && lastStartMs === null) {
-				lastStartMs = Date.now();
-			} else if (!isWindowVisible && lastStartMs !== null) {
-				flushForeground(activeSessionId, lastStartMs);
-				lastStartMs = null;
-			}
+		// Running state changed — flush & reset both
+		if (isRunning !== wasRunning) {
+			if (activeSessionId !== null) flush(activeSessionId, runSegStart, fgSegStart);
+			runSegStart = null;
+			fgSegStart = null;
+			wasRunning = isRunning;
+		}
+
+		if (activeSessionId === null) return;
+
+		const shouldRun = isRunning;
+		const shouldFg = isRunning && isWindowVisible;
+
+		// Running segment: accumulates whenever session is running
+		if (shouldRun && runSegStart === null) {
+			runSegStart = Date.now();
+		} else if (!shouldRun && runSegStart !== null) {
+			flush(activeSessionId, runSegStart, null);
+			runSegStart = null;
+		}
+
+		// Foreground segment: accumulates only when running + visible + not Zen tab
+		if (shouldFg && fgSegStart === null) {
+			fgSegStart = Date.now();
+		} else if (!shouldFg && fgSegStart !== null) {
+			flush(activeSessionId, null, fgSegStart);
+			fgSegStart = null;
 		}
 	}
 
@@ -279,37 +241,33 @@ export function initForegroundTracker(ctx: Context): SnapshotStore<ForegroundSto
 	const onFocus = () => reevaluate();
 	const onBlur = () => reevaluate();
 	const onPageHide = () => {
-		if (activeSessionId !== null && lastStartMs !== null) {
-			flushForeground(activeSessionId, lastStartMs);
-			lastStartMs = null;
+		if (activeSessionId !== null) {
+			flush(activeSessionId, runSegStart, fgSegStart);
+			runSegStart = null;
+			fgSegStart = null;
 		}
 	};
 
 	// ── periodic flush ──────────────────────────────────────────────────
 
 	const flushTimer = setInterval(() => {
-		if (activeSessionId !== null && lastStartMs !== null) {
-			flushForeground(activeSessionId, lastStartMs);
-			lastStartMs = Date.now(); // restart segment for next interval
+		if (activeSessionId !== null && (runSegStart !== null || fgSegStart !== null)) {
+			flush(activeSessionId, runSegStart, fgSegStart);
+			const now = Date.now();
+			if (runSegStart !== null) runSegStart = now;
+			if (fgSegStart !== null) fgSegStart = now;
 		}
 		pruneIfNeeded();
 	}, FLUSH_INTERVAL_MS);
 
-	// ── subscribe to sessions list ──────────────────────────────────────
-
 	const unsubSessions = sessions.list.subscribe(() => reevaluate());
-
-	// ── mount ───────────────────────────────────────────────────────────
 
 	document.addEventListener("visibilitychange", onVisibilityChange);
 	window.addEventListener("focus", onFocus);
 	window.addEventListener("blur", onBlur);
 	window.addEventListener("pagehide", onPageHide);
 
-	// Initial evaluation
 	reevaluate();
-
-	// ── cleanup ──────────────────────────────────────────────────────────
 
 	(ctx as any).effect(() => {
 		return () => {
@@ -319,13 +277,22 @@ export function initForegroundTracker(ctx: Context): SnapshotStore<ForegroundSto
 			window.removeEventListener("pagehide", onPageHide);
 			clearInterval(flushTimer);
 			unsubSessions();
-			// Final flush
-			if (activeSessionId !== null && lastStartMs !== null) {
-				flushForeground(activeSessionId, lastStartMs);
-				lastStartMs = null;
+			if (activeSessionId !== null) {
+				flush(activeSessionId, runSegStart, fgSegStart);
+				runSegStart = null;
+				fgSegStart = null;
 			}
 		};
 	}, "zen-tracker: foreground tracker");
 
-	return store;
+	return {
+		...store,
+		getLiveMs(): { fgDelta: number; runDelta: number } {
+			const now = Date.now();
+			return {
+				fgDelta: fgSegStart !== null ? Math.max(0, now - fgSegStart) : 0,
+				runDelta: runSegStart !== null ? Math.max(0, now - runSegStart) : 0,
+			};
+		},
+	};
 }

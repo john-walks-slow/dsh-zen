@@ -1,10 +1,9 @@
 /**
  * ZenView — the minimal "go do something else" view tab.
  *
- * Running: pet/emoji + cute message.
- * Done: pet/emoji + AI reply (markdown).
- * Bottom: user message (collapsible, subtle).
- * Corner: tooltip with foreground stats.
+ * Running: emoji + cute message.
+ * Done: emoji + AI reply (markdown).
+ * Bottom: stats row + user message row.
  *
  * @module dsh-zen-tracker/components/ZenView
  */
@@ -12,8 +11,6 @@
 import React from "react";
 import { formatDuration, type SessionStats, type ForegroundStoreState } from "../foreground-tracker";
 import type { ZenSettingsStore } from "../zen-settings";
-import { ZenPet, detectPetState } from "./ZenPet";
-import type { PetStore } from "../pet-store";
 
 // ── CSS ─────────────────────────────────────────────────────────────────────
 
@@ -40,13 +37,6 @@ const CSS = `
 	align-items: center;
 	justify-content: center;
 	gap: 8px;
-	animation: dsh-zen-fade-in 0.3s ease-out;
-}
-
-.dsh-zen-icon {
-	font-size: 48px;
-	line-height: 1;
-	user-select: none;
 	animation: dsh-zen-fade-in 0.3s ease-out;
 }
 
@@ -84,75 +74,41 @@ const CSS = `
 	animation: dsh-zen-fade-in 0.3s ease-out 0.15s backwards;
 }
 
+.dsh-zen-turnStats + .dsh-zen-turnStats {
+	animation-delay: 0.2s;
+	margin-top: -4px;
+}
+
 .dsh-zen-turnStatsSep {
 	color: var(--dsw-alias-label-caption);
 	opacity: 0.5;
 }
 
-/* ── AI reply (markdown, bubble) ─────────────────────────────────────────── */
-
-.dsh-zen-reply {
-	max-width: 640px;
-	width: 100%;
-	padding: 12px 16px;
-	border-radius: 12px;
-	background: var(--dsw-alias-interactive-bg-hover);
-	font-size: 15px;
-	line-height: 24px;
-	color: var(--dsw-alias-label-primary);
-	animation: dsh-zen-fade-in 0.3s ease-out 0.1s backwards;
+.dsh-zen-statVal {
+	color: var(--dsw-alias-label-caption);
 }
 
-/* ── User message (bubble) ─────────────────────────────────────────────── */
+/* ── Hint row (dotted underline, hover for tooltip) ─────────────────────── */
 
-.dsh-zen-user {
-	max-width: 580px;
-	width: 100%;
-	padding: 10px 16px;
-	border-radius: 22px;
-	background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 12%, transparent);
-	color: var(--dsw-alias-label-secondary);
-	font-size: 14px;
-	line-height: 22px;
-	white-space: pre-wrap;
-	word-break: break-word;
-	box-sizing: border-box;
-	animation: dsh-zen-fade-in 0.3s ease-out;
-}
-
-/* ── Corner tooltip ─────────────────────────────────────────────────────── */
-
-.dsh-zen-corner {
+.dsh-zen-hint {
 	position: relative;
 	display: inline-flex;
-}
-
-.dsh-zen-cornerBtn {
-	width: 28px;
-	height: 28px;
-	border-radius: 50%;
-	border: none;
-	background: var(--dsw-alias-interactive-bg-hover);
-	color: var(--dsw-alias-label-caption);
-	cursor: help;
-	display: flex;
 	align-items: center;
-	justify-content: center;
-	font-size: 14px;
-	line-height: 1;
-	transition: background 0.12s;
+	cursor: help;
 }
 
-.dsh-zen-cornerBtn:hover {
-	background: var(--dsw-alias-interactive-bg-active);
-	color: var(--dsw-alias-label-secondary);
+.dsh-zen-hintText {
+	color: var(--dsw-alias-label-caption);
+	border-bottom: 1px dotted var(--dsw-alias-label-caption);
+	transition: color 0.12s, border-color 0.12s;
 }
 
 .dsh-zen-tooltip {
 	position: absolute;
 	bottom: 100%;
-	right: 0;
-	min-width: 200px;
+	left: 50%;
+	transform: translateX(-50%) translateY(4px);
+	min-width: 300px;
 	padding: 12px 16px;
 	background: var(--dsw-alias-bg-elevated, var(--dsw-alias-bg-base));
 	border: 1px solid var(--dsw-alias-border-l1);
@@ -164,16 +120,15 @@ const CSS = `
 	font-variant-numeric: tabular-nums;
 	opacity: 0;
 	visibility: hidden;
-	transform: translateY(4px);
 	transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
 	pointer-events: none;
 	z-index: 10;
 }
 
-.dsh-zen-corner:hover .dsh-zen-tooltip {
+.dsh-zen-hint:hover .dsh-zen-tooltip {
 	opacity: 1;
 	visibility: visible;
-	transform: translateY(0);
+	transform: translateX(-50%) translateY(0);
 }
 
 .dsh-zen-tooltipTitle {
@@ -207,6 +162,20 @@ const CSS = `
 	color: var(--dsw-alias-label-caption);
 	margin-top: 6px;
 }
+
+/* ── AI reply (markdown, bubble) ─────────────────────────────────────────── */
+
+.dsh-zen-reply {
+	max-width: 640px;
+	width: 100%;
+	padding: 12px 16px;
+	border-radius: 12px;
+	background: var(--dsw-alias-interactive-bg-hover);
+	font-size: 15px;
+	line-height: 24px;
+	color: var(--dsw-alias-label-primary);
+	animation: dsh-zen-fade-in 0.3s ease-out 0.1s backwards;
+}
 `;
 
 if (typeof document !== "undefined" && !document.querySelector("style[data-plugin-css=\"dsh-zen-tracker/zen-view\"]")) {
@@ -224,24 +193,24 @@ interface ZenViewProps {
 	t: (key: string, params?: Record<string, any>) => string;
 	foregroundStore: {
 		getSnapshot: () => ForegroundStoreState;
+		getLiveMs: () => { fgDelta: number; runDelta: number };
 		subscribe: (fn: () => void) => () => void;
 	};
 	MarkdownText: any;
 	zenSettingsStore: ZenSettingsStore;
-	petStore: PetStore;
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 function computeTotalMs(stats: SessionStats | undefined): number {
 	if (!stats) return 0;
-	const end = stats.sessionEndMs ?? Date.now();
-	return Math.max(0, end - stats.sessionStartMs);
+	// Use runningMs (only counts while running=true), add live segment if currently running
+	return (stats.runningMs ?? 0);
 }
 
 function computeRatio(fgMs: number, totalMs: number): number {
 	if (totalMs <= 0) return 0;
-	return Math.round((fgMs / totalMs) * 100);
+	return Math.round((Math.min(fgMs, totalMs) / totalMs) * 100);
 }
 
 function extractAssistantText(node: any): string | null {
@@ -260,6 +229,37 @@ function extractLastReply(chatSnapshot: any): string | null {
 	const order: readonly string[] = chatSnapshot?.order ?? [];
 	const nodes: Map<string, any> = chatSnapshot?.nodes ?? new Map();
 	for (let i = order.length - 1; i >= 0; i--) {
+		const node = nodes.get(order[i]);
+		if (!node || node.kind !== "assistant-step") continue;
+		const text = extractAssistantText(node);
+		if (text) return text;
+	}
+	return null;
+}
+
+/** Extract the final reply from the PREVIOUS round (before current round's user message). */
+function extractPrevRoundReply(chatSnapshot: any): string | null {
+	const order: readonly string[] = chatSnapshot?.order ?? [];
+	const nodes: Map<string, any> = chatSnapshot?.nodes ?? new Map();
+	const start = findCurrentRoundStart(chatSnapshot);
+	if (!start) return null;
+	// Search backwards from the current round's user message
+	for (let i = start.idx - 1; i >= 0; i--) {
+		const node = nodes.get(order[i]);
+		if (!node || node.kind !== "assistant-step") continue;
+		const text = extractAssistantText(node);
+		if (text) return text;
+	}
+	return null;
+}
+
+/** Extract the latest assistant message in the CURRENT round (after last user message). */
+function extractCurrentRoundReply(chatSnapshot: any): string | null {
+	const order: readonly string[] = chatSnapshot?.order ?? [];
+	const nodes: Map<string, any> = chatSnapshot?.nodes ?? new Map();
+	const start = findCurrentRoundStart(chatSnapshot);
+	if (!start) return null;
+	for (let i = order.length - 1; i > start.idx; i--) {
 		const node = nodes.get(order[i]);
 		if (!node || node.kind !== "assistant-step") continue;
 		const text = extractAssistantText(node);
@@ -293,7 +293,6 @@ function extractLastUserMessage(chatSnapshot: any): string | null {
 	return null;
 }
 
-/** Find the last user/steering node index and its timestamp. */
 function findCurrentRoundStart(chatSnapshot: any): { idx: number; startTime: number } | null {
 	const order: readonly string[] = chatSnapshot?.order ?? [];
 	const nodes: Map<string, any> = chatSnapshot?.nodes ?? new Map();
@@ -306,7 +305,6 @@ function findCurrentRoundStart(chatSnapshot: any): { idx: number; startTime: num
 	return null;
 }
 
-/** Count assistant-steps in the current round (after last user message). */
 function countRoundSteps(chatSnapshot: any): number {
 	const order: readonly string[] = chatSnapshot?.order ?? [];
 	const nodes: Map<string, any> = chatSnapshot?.nodes ?? new Map();
@@ -320,7 +318,6 @@ function countRoundSteps(chatSnapshot: any): number {
 	return count;
 }
 
-/** Compute current round run time (from last user message to now). */
 function computeRoundMs(chatSnapshot: any, running: boolean): number {
 	const order: readonly string[] = chatSnapshot?.order ?? [];
 	const nodes: Map<string, any> = chatSnapshot?.nodes ?? new Map();
@@ -338,14 +335,31 @@ function computeRoundMs(chatSnapshot: any, running: boolean): number {
 	return Math.max(0, endTime - start.startTime);
 }
 
+function pickRandom(t: (k: string) => string, baseKey: string, count: number): string {
+	const idx = 1 + Math.floor(Math.random() * count);
+	return t(`${baseKey}${idx}`);
+}
+
 // ── component ────────────────────────────────────────────────────────────────
 
 export const ZenView = React.memo(function ZenView(props: ZenViewProps) {
-	const { useSession, sessionId, t, foregroundStore, MarkdownText, zenSettingsStore, petStore } = props;
+	const { useSession, sessionId, t, foregroundStore, MarkdownText, zenSettingsStore } = props;
 
-	const running = useSession((s: any) => s.running);
+	const rawRunning = useSession((s: any) => s.running);
 	const blank = useSession((s: any) => s.blank);
 	const chat = useSession((s: any) => s.chat);
+
+	// Debounce running state — avoid flicker on intermediate steps (running briefly goes false→true between steps)
+	const [running, setRunning] = React.useState(rawRunning);
+	React.useEffect(() => {
+		if (rawRunning) {
+			setRunning(true);
+			return;
+		}
+		// Delay switching to "not running" by 800ms to skip intermediate pauses
+		const id = setTimeout(() => setRunning(false), 800);
+		return () => clearTimeout(id);
+	}, [rawRunning]);
 
 	const [, forceUpdate] = React.useReducer((c: number) => c + 1, 0);
 	React.useEffect(() => foregroundStore.subscribe(forceUpdate), [foregroundStore]);
@@ -354,70 +368,92 @@ export const ZenView = React.memo(function ZenView(props: ZenViewProps) {
 	const statsState = foregroundStore.getSnapshot();
 	const stats = statsState.sessions[sessionId];
 	const settings = zenSettingsStore.getSnapshot();
+	const { fgDelta, runDelta } = foregroundStore.getLiveMs();
 
-	const totalMs = computeTotalMs(stats);
-	const fgMs = stats?.foregroundMs ?? 0;
+	const totalMs = (stats?.runningMs ?? 0) + runDelta;
+	const fgMs = Math.min((stats?.foregroundMs ?? 0) + fgDelta, totalMs);
 	const ratio = computeRatio(fgMs, totalMs);
+	const zenPct = 100 - ratio;
 
 	const lastReply = !running && !blank ? extractLastReply(chat) : null;
 	const userMsg = !blank ? extractLastUserMessage(chat) : null;
+	const prevReply = !blank ? extractPrevRoundReply(chat) : null;
+	const currentReply = !blank ? extractCurrentRoundReply(chat) : null;
 	const roundSteps = !blank ? countRoundSteps(chat) : 0;
 	const roundMs = !blank ? computeRoundMs(chat, running) : 0;
 
-	// Live tick while running
+	// Live tick — always running so tooltip stats stay fresh
 	const [, clockTick] = React.useReducer((c: number) => c + 1, 0);
 	React.useEffect(() => {
-		if (!running) return;
 		const id = setInterval(clockTick, 1_000);
 		return () => clearInterval(id);
-	}, [running]);
+	}, []);
 
-	const petState = detectPetState(running, blank, chat);
-	const icon = blank ? "🌙" : running ? "🐋" : "✨";
-	const message = blank ? t("zen.noSession")
-		: running ? t("zen.deepDiving")
-		: t("zen.ready");
-	const sub = running ? t("zen.subRunning") : blank ? "" : t("zen.subReady");
-
-	// Decide what to show: emoji icon, pet, or nothing
-	const showEmoji = settings.showEmoji;
-	const showPet = settings.showPet && !showEmoji;
+	const message = React.useMemo(
+		() => blank ? t("zen.noSession")
+			: running ? pickRandom(t, "zen.deepDiving", 5)
+			: pickRandom(t, "zen.ready", 5),
+		[blank, running],
+	);
+	const sub = React.useMemo(
+		() => running ? pickRandom(t, "zen.subRunning", 4) : blank ? "" : pickRandom(t, "zen.subReady", 3),
+		[blank, running],
+	);
 
 	return React.createElement("div", { className: "dsh-zen-root" },
-		// User message (bubble, top)
-		settings.showUserMessage && userMsg && React.createElement("div", { className: "dsh-zen-user" }, userMsg),
-		// Running: pet/emoji + cute message
-		running && !blank && (showPet || showEmoji || settings.showStatus) && React.createElement("div", { className: "dsh-zen-center" },
-			showEmoji && React.createElement("div", { className: "dsh-zen-icon" }, icon),
-			showPet && React.createElement(ZenPet, { state: petState, petStore }),
+		// Running: cute message + current round reply
+		running && !blank && (settings.showStatus || (settings.showCurrentReply && currentReply)) && React.createElement("div", { className: "dsh-zen-center" },
 			settings.showStatus && React.createElement("div", { className: "dsh-zen-message" }, message),
 			settings.showStatus && sub && React.createElement("div", { className: "dsh-zen-sub" }, sub),
+			settings.showCurrentReply && currentReply && React.createElement("div", { className: "dsh-zen-reply" },
+				MarkdownText
+					? React.createElement(MarkdownText, { text: currentReply })
+					: currentReply,
+			),
 		),
-		// Done: pet/emoji + AI reply with markdown
-		!running && lastReply && !blank && (showPet || showEmoji || settings.showAiReply) && React.createElement("div", { className: "dsh-zen-center" },
-			showEmoji && React.createElement("div", { className: "dsh-zen-icon" }, icon),
-			showPet && React.createElement(ZenPet, { state: "done", scale: 0.45, petStore }),
-			settings.showAiReply && lastReply && React.createElement("div", { className: "dsh-zen-reply" },
+		// Done: AI reply with markdown
+		!running && lastReply && !blank && settings.showAiReply && React.createElement("div", { className: "dsh-zen-center" },
+			React.createElement("div", { className: "dsh-zen-reply" },
 				MarkdownText
 					? React.createElement(MarkdownText, { text: lastReply })
 					: lastReply,
 			),
 		),
 		// Empty state
-		blank && (showPet || showEmoji || settings.showStatus) && React.createElement("div", { className: "dsh-zen-center" },
-			showEmoji && React.createElement("div", { className: "dsh-zen-icon" }, icon),
-			showPet && React.createElement(ZenPet, { state: "idle", petStore }),
-			settings.showStatus && React.createElement("div", { className: "dsh-zen-message" }, message),
+		blank && settings.showStatus && React.createElement("div", { className: "dsh-zen-center" },
+			React.createElement("div", { className: "dsh-zen-message" }, message),
 		),
-		// Turn stats + foreground tooltip (inline row)
-		settings.showTurnStats && !blank && React.createElement("div", { className: "dsh-zen-turnStats" },
-			React.createElement("span", null, `${t("zen.turnCount")} ${roundSteps}`),
-			React.createElement("span", { className: "dsh-zen-turnStatsSep" }, "·"),
-			React.createElement("span", null, `${t("zen.runTime")} ${formatDuration(roundMs)}`),
+		// Turn stats + user message + prev reply + foreground tooltip (single line)
+		!blank && (settings.showTurnStats || settings.showUserMessage || settings.showPrevReply || settings.showForegroundTooltip) && React.createElement("div", { className: "dsh-zen-turnStats" },
+			settings.showTurnStats && React.createElement(React.Fragment, null,
+				React.createElement("span", { className: "dsh-zen-statVal" }, `${t("zen.turnCount")} ${roundSteps}`),
+				React.createElement("span", { className: "dsh-zen-turnStatsSep" }, "·"),
+				React.createElement("span", { className: "dsh-zen-statVal" }, `${t("zen.runTime")} ${formatDuration(roundMs)}`),
+			),
+			settings.showUserMessage && userMsg && React.createElement(React.Fragment, null,
+				React.createElement("span", { className: "dsh-zen-turnStatsSep" }, "·"),
+				React.createElement("div", { className: "dsh-zen-hint" },
+					React.createElement("span", { className: "dsh-zen-hintText" }, t("zen.youSaid")),
+					React.createElement("div", { className: "dsh-zen-tooltip" },
+						React.createElement("div", { className: "dsh-zen-tooltipTitle" }, t("zen.youSaid")),
+						React.createElement("div", { style: { whiteSpace: "pre-wrap", wordBreak: "break-word", maxWidth: "400px", maxHeight: "300px", overflow: "auto" } }, userMsg),
+					),
+				),
+			),
+			settings.showPrevReply && prevReply && React.createElement(React.Fragment, null,
+				React.createElement("span", { className: "dsh-zen-turnStatsSep" }, "·"),
+				React.createElement("div", { className: "dsh-zen-hint" },
+					React.createElement("span", { className: "dsh-zen-hintText" }, t("zen.prevReply")),
+					React.createElement("div", { className: "dsh-zen-tooltip" },
+						React.createElement("div", { className: "dsh-zen-tooltipTitle" }, t("zen.prevReply")),
+						React.createElement("div", { style: { whiteSpace: "pre-wrap", wordBreak: "break-word", maxWidth: "400px", maxHeight: "300px", overflow: "auto" } }, prevReply),
+					),
+				),
+			),
 			settings.showForegroundTooltip && React.createElement(React.Fragment, null,
 				React.createElement("span", { className: "dsh-zen-turnStatsSep" }, "·"),
-				React.createElement("div", { className: "dsh-zen-corner" },
-					React.createElement("button", { className: "dsh-zen-cornerBtn", title: t("zen.statsTitle") }, "⏱"),
+				React.createElement("div", { className: "dsh-zen-hint" },
+					React.createElement("span", { className: "dsh-zen-hintText" }, t("zen.stats")),
 					React.createElement("div", { className: "dsh-zen-tooltip" },
 						React.createElement("div", { className: "dsh-zen-tooltipTitle" }, t("zen.statsTitle")),
 						React.createElement("div", { className: "dsh-zen-tooltipRow" },
@@ -433,7 +469,10 @@ export const ZenView = React.memo(function ZenView(props: ZenViewProps) {
 							React.createElement("span", null, t("zen.ratio")),
 							React.createElement("span", { className: "dsh-zen-tooltipValue" }, ratio + "%"),
 						),
-						React.createElement("div", { className: "dsh-zen-tooltipHint" }, t("zen.tooltipHint")),
+						React.createElement("div", { className: "dsh-zen-tooltipRow" },
+							React.createElement("span", null, t("zen.zen")),
+							React.createElement("span", { className: "dsh-zen-tooltipValue" }, zenPct + "%"),
+						),
 					),
 				),
 			),
