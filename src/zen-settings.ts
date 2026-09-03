@@ -33,12 +33,12 @@ const DEFAULTS: ZenSettings = {
 	showDoneStatus: false,
 	showUserMessage: true,
 	showPrevReply: true,
-	showCurrentReply: false,
+	showCurrentReply: true,
 	showTurnStats: true,
 	showForegroundTooltip: true,
 	autoEnterZen: false,
 	autoExitZen: false,
-	animation: true,
+	animation: false,
 };
 
 type Listener = () => void;
