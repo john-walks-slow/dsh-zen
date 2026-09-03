@@ -451,6 +451,9 @@ export const ZenView = React.memo(function ZenView(props: ZenViewProps) {
 	const rawRunning = useSession((s: any) => s.running);
 	const blank = useSession((s: any) => s.blank);
 	const chat = useSession((s: any) => s.chat);
+	// In-flight tool calls (tool/call seen, tool/result not yet) — shows what the
+	// agent is doing right now while generating.
+	const runningCalls = useSession((s: any) => s?.runningCalls);
 	// History is being loaded into the session window (cold = not opened yet,
 	// loading = fetching history) — Zen should show a loading state too.
 	const openState = useSession((s: any) => s?.openState);
@@ -509,6 +512,9 @@ export const ZenView = React.memo(function ZenView(props: ZenViewProps) {
 	const currentReply = !blank ? extractCurrentRoundReply(chat) : null;
 	const roundSteps = !blank ? countRoundSteps(chat) : 0;
 	const roundMs = !blank ? computeRoundMs(chat, running) : 0;
+	const runningTools = Array.isArray(runningCalls)
+		? runningCalls.map((c: any) => c?.name).filter((n: unknown): n is string => typeof n === "string" && !!n)
+		: [];
 
 	// Live tick — always running so tooltip stats stay fresh
 	const [, clockTick] = React.useReducer((c: number) => c + 1, 0);
@@ -561,13 +567,20 @@ export const ZenView = React.memo(function ZenView(props: ZenViewProps) {
 				React.createElement("span", { className: "dsh-zen-turnStatsSep" }, "·"),
 				React.createElement("span", { className: "dsh-zen-statVal" }, `${t("zen.runTime")} ${formatDuration(roundMs)}`),
 			),
-			statusRunning && settings.showCurrentReply && currentReply && React.createElement(React.Fragment, null,
+			statusRunning && settings.showCurrentReply && (currentReply || runningTools.length > 0) && React.createElement(React.Fragment, null,
 				React.createElement("span", { className: "dsh-zen-turnStatsSep" }, "·"),
 				React.createElement("div", { className: "dsh-zen-hint" },
 					React.createElement("span", { className: "dsh-zen-hintText" }, t("zen.currentReply")),
 					React.createElement("div", { className: "dsh-zen-tooltip" },
 						React.createElement("div", { className: "dsh-zen-tooltipTitle" }, t("zen.currentReply")),
-						React.createElement("div", { className: "dsh-zen-tooltipBody" }, renderMarkdown(MarkdownText, currentReply)),
+						runningTools.length > 0 && React.createElement(React.Fragment, null,
+							React.createElement("div", { className: "dsh-zen-tooltipRow" },
+								React.createElement("span", null, t("zen.runningTool")),
+								React.createElement("span", { className: "dsh-zen-tooltipValue" }, runningTools.join(" · ")),
+							),
+							currentReply && React.createElement("div", { className: "dsh-zen-tooltipDivider" }),
+						),
+						currentReply && React.createElement("div", { className: "dsh-zen-tooltipBody" }, renderMarkdown(MarkdownText, currentReply)),
 					),
 				),
 			),
