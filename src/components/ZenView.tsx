@@ -9,7 +9,7 @@
  */
 
 import React from "react";
-import { formatDuration, type SessionStats, type ForegroundStoreState } from "../foreground-tracker";
+import { formatDuration, type ForegroundStoreState } from "../foreground-tracker";
 import type { ZenSettingsStore } from "../zen-settings";
 
 // ── CSS ─────────────────────────────────────────────────────────────────────
@@ -32,12 +32,27 @@ const CSS = `
 }
 
 .dsh-zen-center {
+	width: 100%;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
 	gap: 8px;
-	animation: dsh-zen-fade-in 0.3s ease-out;
+}
+
+/* Status center: always mounted; show/hide via data-hidden + transitions.
+   Kept separate from .dsh-zen-center so the done-reply block is never
+   height-clipped by max-height. */
+.dsh-zen-statusCenter {
+	max-height: 200px;
+	overflow: hidden;
+	transition: opacity 0.25s ease, max-height 0.25s ease, visibility 0.25s ease;
+}
+
+.dsh-zen-statusCenter[data-hidden="true"] {
+	opacity: 0;
+	visibility: hidden;
+	max-height: 0;
 }
 
 .dsh-zen-message {
@@ -46,19 +61,24 @@ const CSS = `
 	line-height: 28px;
 	color: var(--dsw-alias-label-secondary);
 	text-align: center;
-	animation: dsh-zen-fade-in 0.3s ease-out 0.05s backwards;
 }
 
 .dsh-zen-sub {
 	font-size: 14px;
 	line-height: 20px;
 	color: var(--dsw-alias-label-tertiary);
-	animation: dsh-zen-fade-in 0.3s ease-out 0.1s backwards;
 }
 
 @keyframes dsh-zen-fade-in {
 	from { opacity: 0; transform: translateY(8px); }
 	to { opacity: 1; transform: translateY(0); }
+}
+
+/* Animation toggle: when off, disable all entry animations and transitions */
+.dsh-zen-root[data-anim="off"],
+.dsh-zen-root[data-anim="off"] * {
+	animation: none !important;
+	transition: none !important;
 }
 
 /* ── Turn stats ───────────────────────────────────────────────────────────── */
@@ -129,6 +149,7 @@ const CSS = `
 	opacity: 1;
 	visibility: visible;
 	transform: translateX(-50%) translateY(0);
+	pointer-events: auto;
 }
 
 .dsh-zen-tooltipTitle {
@@ -138,6 +159,54 @@ const CSS = `
 	margin-bottom: 6px;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
+}
+
+.dsh-zen-tooltipBody {
+	max-width: 400px;
+	max-height: 300px;
+	overflow: auto;
+	font-size: 13px;
+	line-height: 22px;
+	color: var(--dsw-alias-label-secondary);
+}
+
+/* Constrain markdown elements inside the tooltip */
+.dsh-zen-tooltipBody > :first-child {
+	margin-top: 0;
+}
+.dsh-zen-tooltipBody > :last-child {
+	margin-bottom: 0;
+}
+.dsh-zen-tooltipBody p,
+.dsh-zen-tooltipBody ul,
+.dsh-zen-tooltipBody ol,
+.dsh-zen-tooltipBody pre,
+.dsh-zen-tooltipBody blockquote {
+	margin: 6px 0;
+}
+.dsh-zen-tooltipBody h1,
+.dsh-zen-tooltipBody h2,
+.dsh-zen-tooltipBody h3,
+.dsh-zen-tooltipBody h4 {
+	margin: 8px 0 4px;
+	font-size: 14px;
+	line-height: 20px;
+}
+.dsh-zen-tooltipBody pre {
+	max-width: 100%;
+	overflow-x: auto;
+	padding: 8px 10px;
+	border-radius: 6px;
+	background: var(--dsw-alias-interactive-bg-hover);
+	font-size: 12px;
+	line-height: 18px;
+}
+.dsh-zen-tooltipBody img {
+	max-width: 100%;
+	border-radius: 6px;
+}
+.dsh-zen-tooltipBody code {
+	word-break: break-word;
 }
 
 .dsh-zen-tooltipRow {
@@ -166,15 +235,33 @@ const CSS = `
 /* ── AI reply (markdown, bubble) ─────────────────────────────────────────── */
 
 .dsh-zen-reply {
-	max-width: 640px;
 	width: 100%;
-	padding: 12px 16px;
-	border-radius: 12px;
-	background: var(--dsw-alias-interactive-bg-hover);
+	max-width: 740px;
+	box-sizing: border-box;
 	font-size: 15px;
 	line-height: 24px;
 	color: var(--dsw-alias-label-primary);
 	animation: dsh-zen-fade-in 0.3s ease-out 0.1s backwards;
+}
+
+/* ── User message blockquote ─────────────────────────────────────────────── */
+
+.dsh-zen-userQuote {
+	width: 100%;
+	max-width: 740px;
+	box-sizing: border-box;
+	padding: 8px 16px;
+	border-left: 3px solid var(--dsw-alias-border-l2);
+	border-radius: 0 8px 8px 0;
+	background: var(--dsw-alias-interactive-bg-subtle, transparent);
+	font-size: 14px;
+	line-height: 22px;
+	color: var(--dsw-alias-label-secondary);
+	white-space: pre-wrap;
+	word-break: break-word;
+	max-height: 200px;
+	overflow: auto;
+	animation: dsh-zen-fade-in 0.3s ease-out 0.08s backwards;
 }
 `;
 
@@ -201,12 +288,6 @@ interface ZenViewProps {
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
-
-function computeTotalMs(stats: SessionStats | undefined): number {
-	if (!stats) return 0;
-	// Use runningMs (only counts while running=true), add live segment if currently running
-	return (stats.runningMs ?? 0);
-}
 
 function computeRatio(fgMs: number, totalMs: number): number {
 	if (totalMs <= 0) return 0;
@@ -293,6 +374,17 @@ function extractLastUserMessage(chatSnapshot: any): string | null {
 	return null;
 }
 
+/** Key (order id) of the LAST user/steering node in chat, or null. */
+function getLastUserKey(chatSnapshot: any): string | null {
+	const order: readonly string[] = chatSnapshot?.order ?? [];
+	const nodes: Map<string, any> = chatSnapshot?.nodes ?? new Map();
+	for (let i = order.length - 1; i >= 0; i--) {
+		const node = nodes.get(order[i]);
+		if (node && (node.kind === "user" || node.kind === "steering")) return order[i];
+	}
+	return null;
+}
+
 function findCurrentRoundStart(chatSnapshot: any): { idx: number; startTime: number } | null {
 	const order: readonly string[] = chatSnapshot?.order ?? [];
 	const nodes: Map<string, any> = chatSnapshot?.nodes ?? new Map();
@@ -340,6 +432,17 @@ function pickRandom(t: (k: string) => string, baseKey: string, count: number): s
 	return t(`${baseKey}${idx}`);
 }
 
+/**
+ * Render markdown when the host's MarkdownText is available (same component the
+ * done-reply uses); fall back to plain pre-wrapped text otherwise.
+ */
+function renderMarkdown(MarkdownText: any, text: string): React.ReactNode {
+	if (MarkdownText) {
+		return React.createElement(MarkdownText, { text });
+	}
+	return React.createElement("div", { style: { whiteSpace: "pre-wrap", wordBreak: "break-word" } }, text);
+}
+
 // ── component ────────────────────────────────────────────────────────────────
 
 export const ZenView = React.memo(function ZenView(props: ZenViewProps) {
@@ -348,18 +451,45 @@ export const ZenView = React.memo(function ZenView(props: ZenViewProps) {
 	const rawRunning = useSession((s: any) => s.running);
 	const blank = useSession((s: any) => s.blank);
 	const chat = useSession((s: any) => s.chat);
+	// History is being loaded into the session window (cold = not opened yet,
+	// loading = fetching history) — Zen should show a loading state too.
+	const openState = useSession((s: any) => s?.openState);
+	const isLoading = !blank && (openState === "cold" || openState === "loading");
 
-	// Debounce running state — avoid flicker on intermediate steps (running briefly goes false→true between steps)
-	const [running, setRunning] = React.useState(rawRunning);
+	// Debounce only the status message text (avoid deepDiving→ready flicker on intermediate steps)
+	// Data extraction (lastReply, userMsg etc.) uses rawRunning directly to avoid stale content
+	const [statusRunning, setStatusRunning] = React.useState(rawRunning);
 	React.useEffect(() => {
 		if (rawRunning) {
-			setRunning(true);
+			setStatusRunning(true);
 			return;
 		}
-		// Delay switching to "not running" by 800ms to skip intermediate pauses
-		const id = setTimeout(() => setRunning(false), 800);
+		const id = setTimeout(() => setStatusRunning(false), 800);
 		return () => clearTimeout(id);
 	}, [rawRunning]);
+
+	const running = rawRunning;
+
+	const settings = zenSettingsStore.getSnapshot();
+
+	// Key of the last user node at the last *confirmed* done state. While a
+	// round is running (statusRunning), a fresh user message is only shown once
+	// its node has actually landed in chat (key changed) — until then we show
+	// nothing rather than the previous round's message.
+	const currentUserKey = !blank ? getLastUserKey(chat) : null;
+	const lastUserKeyRef = React.useRef<string | null>(null);
+	React.useEffect(() => {
+		if (!statusRunning) lastUserKeyRef.current = getLastUserKey(chat);
+	}, [statusRunning, chat]);
+	const userMsg = !blank ? extractLastUserMessage(chat) : null;
+	// While generating: user message shows only if the toggle is on and the fresh
+	// user node has actually landed in chat (key changed) — never the previous
+	// round's message. When done (result state): the user message is always shown,
+	// regardless of the toggle.
+	const userMsgVisible = !!userMsg && !blank && !isLoading
+		&& (statusRunning
+			? settings.showUserMessage && currentUserKey !== lastUserKeyRef.current
+			: true);
 
 	const [, forceUpdate] = React.useReducer((c: number) => c + 1, 0);
 	React.useEffect(() => foregroundStore.subscribe(forceUpdate), [foregroundStore]);
@@ -367,7 +497,6 @@ export const ZenView = React.memo(function ZenView(props: ZenViewProps) {
 
 	const statsState = foregroundStore.getSnapshot();
 	const stats = statsState.sessions[sessionId];
-	const settings = zenSettingsStore.getSnapshot();
 	const { fgDelta, runDelta } = foregroundStore.getLiveMs();
 
 	const totalMs = (stats?.runningMs ?? 0) + runDelta;
@@ -376,7 +505,6 @@ export const ZenView = React.memo(function ZenView(props: ZenViewProps) {
 	const zenPct = 100 - ratio;
 
 	const lastReply = !running && !blank ? extractLastReply(chat) : null;
-	const userMsg = !blank ? extractLastUserMessage(chat) : null;
 	const prevReply = !blank ? extractPrevRoundReply(chat) : null;
 	const currentReply = !blank ? extractCurrentRoundReply(chat) : null;
 	const roundSteps = !blank ? countRoundSteps(chat) : 0;
@@ -391,62 +519,65 @@ export const ZenView = React.memo(function ZenView(props: ZenViewProps) {
 
 	const message = React.useMemo(
 		() => blank ? t("zen.noSession")
-			: running ? pickRandom(t, "zen.deepDiving", 5)
+			: isLoading ? t("zen.loading")
+			: statusRunning ? pickRandom(t, "zen.deepDiving", 5)
 			: pickRandom(t, "zen.ready", 5),
-		[blank, running],
+		[blank, isLoading, statusRunning],
 	);
 	const sub = React.useMemo(
-		() => running ? pickRandom(t, "zen.subRunning", 4) : blank ? "" : pickRandom(t, "zen.subReady", 3),
-		[blank, running],
+		() => statusRunning ? pickRandom(t, "zen.subRunning", 4)
+			: blank || isLoading ? "" : pickRandom(t, "zen.subReady", 3),
+		[blank, isLoading, statusRunning],
 	);
 
-	return React.createElement("div", { className: "dsh-zen-root" },
-		// Running: cute message + current round reply
-		running && !blank && (settings.showStatus || (settings.showCurrentReply && currentReply)) && React.createElement("div", { className: "dsh-zen-center" },
-			settings.showStatus && React.createElement("div", { className: "dsh-zen-message" }, message),
-			settings.showStatus && sub && React.createElement("div", { className: "dsh-zen-sub" }, sub),
-			settings.showCurrentReply && currentReply && React.createElement("div", { className: "dsh-zen-reply" },
-				MarkdownText
-					? React.createElement(MarkdownText, { text: currentReply })
-					: currentReply,
-			),
+	// Loading/running share the "running" toggle; done has its own.
+	// Always mounted (data-hidden drives the opacity/max-height transition) so
+	// status switches never remount the block and replay its fade-in.
+	const showStatusCenter = blank
+		? settings.showRunningStatus
+		: (isLoading || statusRunning) ? settings.showRunningStatus : settings.showDoneStatus;
+
+	return React.createElement("div", { className: "dsh-zen-root", "data-anim": settings.animation ? "on" : "off" },
+		// Status message (loading, running or done) — always mounted, fades via data-hidden
+		React.createElement("div", { className: "dsh-zen-center dsh-zen-statusCenter", "data-hidden": String(!showStatusCenter) },
+			React.createElement("div", { className: "dsh-zen-message" }, message),
+			// Second-line description temporarily hidden (keep code for re-enable)
+			// sub && React.createElement("div", { className: "dsh-zen-sub" }, sub),
 		),
-		// Done: AI reply with markdown
-		!running && lastReply && !blank && settings.showAiReply && React.createElement("div", { className: "dsh-zen-center" },
+		// User message blockquote (below status, above reply) — while generating only
+		!blank && !isLoading && userMsgVisible && React.createElement("blockquote", { className: "dsh-zen-userQuote" }, userMsg),
+		// Done: AI reply with markdown (debounced — no flash on intermediate step gaps; always shown)
+		!statusRunning && lastReply && !blank && !isLoading && React.createElement("div", { className: "dsh-zen-center" },
 			React.createElement("div", { className: "dsh-zen-reply" },
 				MarkdownText
 					? React.createElement(MarkdownText, { text: lastReply })
 					: lastReply,
 			),
 		),
-		// Empty state
-		blank && settings.showStatus && React.createElement("div", { className: "dsh-zen-center" },
-			React.createElement("div", { className: "dsh-zen-message" }, message),
-		),
-		// Turn stats + user message + prev reply + foreground tooltip (single line)
-		!blank && (settings.showTurnStats || settings.showUserMessage || settings.showPrevReply || settings.showForegroundTooltip) && React.createElement("div", { className: "dsh-zen-turnStats" },
+		// Turn stats + current reply tooltip + prev reply tooltip + foreground tooltip (single line)
+		!blank && !isLoading && (settings.showTurnStats || settings.showCurrentReply || settings.showPrevReply || settings.showForegroundTooltip) && React.createElement("div", { className: "dsh-zen-turnStats" },
 			settings.showTurnStats && React.createElement(React.Fragment, null,
 				React.createElement("span", { className: "dsh-zen-statVal" }, `${t("zen.turnCount")} ${roundSteps}`),
 				React.createElement("span", { className: "dsh-zen-turnStatsSep" }, "·"),
 				React.createElement("span", { className: "dsh-zen-statVal" }, `${t("zen.runTime")} ${formatDuration(roundMs)}`),
 			),
-			settings.showUserMessage && userMsg && React.createElement(React.Fragment, null,
+			statusRunning && settings.showCurrentReply && currentReply && React.createElement(React.Fragment, null,
 				React.createElement("span", { className: "dsh-zen-turnStatsSep" }, "·"),
 				React.createElement("div", { className: "dsh-zen-hint" },
-					React.createElement("span", { className: "dsh-zen-hintText" }, t("zen.youSaid")),
+					React.createElement("span", { className: "dsh-zen-hintText" }, t("zen.currentReply")),
 					React.createElement("div", { className: "dsh-zen-tooltip" },
-						React.createElement("div", { className: "dsh-zen-tooltipTitle" }, t("zen.youSaid")),
-						React.createElement("div", { style: { whiteSpace: "pre-wrap", wordBreak: "break-word", maxWidth: "400px", maxHeight: "300px", overflow: "auto" } }, userMsg),
+						React.createElement("div", { className: "dsh-zen-tooltipTitle" }, t("zen.currentReply")),
+						React.createElement("div", { className: "dsh-zen-tooltipBody" }, renderMarkdown(MarkdownText, currentReply)),
 					),
 				),
 			),
-			settings.showPrevReply && prevReply && React.createElement(React.Fragment, null,
+			statusRunning && settings.showPrevReply && prevReply && React.createElement(React.Fragment, null,
 				React.createElement("span", { className: "dsh-zen-turnStatsSep" }, "·"),
 				React.createElement("div", { className: "dsh-zen-hint" },
 					React.createElement("span", { className: "dsh-zen-hintText" }, t("zen.prevReply")),
 					React.createElement("div", { className: "dsh-zen-tooltip" },
 						React.createElement("div", { className: "dsh-zen-tooltipTitle" }, t("zen.prevReply")),
-						React.createElement("div", { style: { whiteSpace: "pre-wrap", wordBreak: "break-word", maxWidth: "400px", maxHeight: "300px", overflow: "auto" } }, prevReply),
+						React.createElement("div", { className: "dsh-zen-tooltipBody" }, renderMarkdown(MarkdownText, prevReply)),
 					),
 				),
 			),

@@ -64,8 +64,13 @@ await writeFile("lib/index.js", hostResult.outputFiles[0].text, "utf8");
 console.log("✓ Built lib/index.js");
 
 // ── Deploy to DSH profile node_modules ───────────────────────────────────────
-// Copy build output + assets directly, avoiding fragile NTFS junctions.
-const DEPLOY_DIR = "C:\\Users\\r30063735\\.dsh\\profiles\\web\\node_modules\\dsh-zen-tracker";
+// Resolve the DSH home from $DSH_HOME (or the default ~/.dsh), then deploy into
+// the "web" profile. No machine-specific absolute paths in the repo.
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+const dshHome = process.env.DSH_HOME || join(homedir(), ".dsh");
+const DEPLOY_DIR = join(dshHome, "profiles", "web", "node_modules", PKG_NAME);
 
 if (existsSync(DEPLOY_DIR)) {
 	try { await rm(DEPLOY_DIR, { recursive: true, force: true }); } catch {}

@@ -67,6 +67,9 @@ body[data-chat-hide="on"] [data-chat-flow-kind="turn-max-tokens"] { display: non
 /* Hide reasoning rows inside assistant-step */
 body[data-chat-hide="on"] [data-chat-flow-kind="assistant-step"] [data-variant="think"] { display: none !important; }
 
+/* Hide assistant-step that only contains think (no reply) — prevents extra flex gap */
+body[data-chat-hide="on"] [data-chat-flow-kind="assistant-step"]:has(.Sxvs8a_body > [data-variant="think"]:only-child) { display: none !important; }
+
 /* Collapse context/compaction rows inside user messages (they have padding:2px 0) */
 body[data-chat-hide="on"] .gdEzaW_contextRow:empty,
 body[data-chat-hide="on"] .gdEzaW_compactionRow:empty { display: none !important; }

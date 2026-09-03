@@ -1,22 +1,37 @@
 {
   "name": "dsh-zen-tracker",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Zen Mode view tab + foreground time tracker for DeepSeek Harness",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {
-    ".": {
-      "types": "./lib/types/index.d.ts",
-      "default": "./lib/index.js"
-    },
+    ".": "./lib/index.js",
     "./client": "./lib/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "cordis.patch.yml",
+    "assets/icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit"
   },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "zen",
+    "focus",
+    "foreground-tracker",
+    "productivity"
+  ],
+  "license": "MIT",
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -29,6 +44,12 @@
         "@deepseek-ai/dsh-client-locale"
       ],
       "platform": "web"
+    },
+    "market": {
+      "displayName": "Zen Tracker",
+      "icon": "assets/icon.svg",
+      "categories": ["interface", "productivity"],
+      "screenshots": ["docs/screenshots/zen-view.png", "docs/screenshots/settings.png"]
     }
   },
   "peerDependencies": {

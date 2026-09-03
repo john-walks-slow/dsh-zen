@@ -31,6 +31,14 @@ const CSS = `
 	margin-bottom: 12px;
 }
 
+.dsh-zen-settingsShortcut {
+	font-size: 12px;
+	line-height: 18px;
+	color: var(--dsw-alias-label-caption);
+	margin-bottom: 12px;
+	font-variant-numeric: tabular-nums;
+}
+
 /* ── Zen stats card ─────────────────────────────────────────────────────── */
 
 .dsh-zen-statsCard {
@@ -202,7 +210,7 @@ function startOfWeek(): number {
 	return now.getTime();
 }
 
-function computePeriodStats(sessions: ForegroundStoreState["sessions"], sinceMs: number, liveDelta: { fgDelta: number; runDelta: number }) {
+function computePeriodStats(sessions: ForegroundStoreState["sessions"], sinceMs: number, liveDelta: { fgDelta: number; runDelta: number; sessionId: string | null }) {
 	let fgMs = 0;
 	let totalMs = 0;
 	for (const stats of Object.values(sessions)) {
@@ -213,9 +221,14 @@ function computePeriodStats(sessions: ForegroundStoreState["sessions"], sinceMs:
 		fgMs += fg;
 		totalMs += run;
 	}
-	// Add live delta (from current un-flushed segment)
-	fgMs += liveDelta.fgDelta;
-	totalMs += liveDelta.runDelta;
+	// Add live delta only when the currently active session belongs to this period.
+	// Otherwise (e.g. a session started yesterday and still running), its un-flushed
+	// increments must not leak into today's/week's totals.
+	const liveSession = liveDelta.sessionId ? sessions[liveDelta.sessionId] : null;
+	if (liveSession && liveSession.sessionStartMs >= sinceMs) {
+		fgMs += liveDelta.fgDelta;
+		totalMs += liveDelta.runDelta;
+	}
 	fgMs = Math.min(fgMs, totalMs);
 	const ratio = totalMs > 0 ? Math.round((fgMs / totalMs) * 100) : 0;
 	const zenPct = 100 - ratio;
@@ -228,7 +241,7 @@ interface ZenSettingsSectionProps {
 	zenSettingsStore: ZenSettingsStore;
 	foregroundStore: {
 		getSnapshot: () => ForegroundStoreState;
-		getLiveMs: () => { fgDelta: number; runDelta: number };
+		getLiveMs: () => { fgDelta: number; runDelta: number; sessionId: string | null };
 		subscribe: (fn: () => void) => () => void;
 	};
 	t: (key: string, params?: Record<string, any>) => string;
@@ -240,15 +253,16 @@ interface ToggleItem {
 }
 
 const ITEMS: ToggleItem[] = [
-	{ key: "showStatus", labelKey: "settings.showStatus" },
+	{ key: "showRunningStatus", labelKey: "settings.showRunningStatus" },
+	{ key: "showDoneStatus", labelKey: "settings.showDoneStatus" },
 	{ key: "showUserMessage", labelKey: "settings.showUserMessage" },
 	{ key: "showPrevReply", labelKey: "settings.showPrevReply" },
 	{ key: "showCurrentReply", labelKey: "settings.showCurrentReply" },
-	{ key: "showAiReply", labelKey: "settings.showAiReply" },
 	{ key: "showTurnStats", labelKey: "settings.showTurnStats" },
 	{ key: "showForegroundTooltip", labelKey: "settings.showForegroundTooltip" },
 	{ key: "autoEnterZen", labelKey: "settings.autoEnterZen" },
 	{ key: "autoExitZen", labelKey: "settings.autoExitZen" },
+	{ key: "animation", labelKey: "settings.animation" },
 ];
 
 export const ZenSettingsSection = React.memo(function ZenSettingsSection(props: ZenSettingsSectionProps) {
@@ -267,16 +281,17 @@ export const ZenSettingsSection = React.memo(function ZenSettingsSection(props: 
 	const todayLevel = getZenLevel(todayStats.zenPct);
 	const isZh = (t("zen.zen") === "禅");
 
-	// Live tick
+	// Live tick — 1s so stats feel real-time (getLiveMs adds un-flushed delta)
 	const [, clockTick] = React.useReducer((c: number) => c + 1, 0);
 	React.useEffect(() => {
-		const id = setInterval(clockTick, 5_000);
+		const id = setInterval(clockTick, 1_000);
 		return () => clearInterval(id);
 	}, []);
 
 	return React.createElement("div", { className: "dsh-zen-settings" },
 		React.createElement("div", { className: "dsh-zen-settingsTitle" }, t("settings.title")),
 		React.createElement("div", { className: "dsh-zen-settingsDesc" }, t("settings.desc")),
+		React.createElement("div", { className: "dsh-zen-settingsShortcut" }, t("settings.shortcut")),
 		// Zen stats card
 		React.createElement("div", { className: "dsh-zen-statsCard" },
 			React.createElement("div", { className: "dsh-zen-statsGrid" },

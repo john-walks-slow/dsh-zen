@@ -63,6 +63,28 @@ function initAutoZenSwitcher(ctx: any, zenSettingsStore: ZenSettingsStore): void
 }
 
 /**
+ * Alt+Z toggles between the Zen view and the chat view.
+ *
+ * Best practice: DSH has no global shortcut API — the built-in conversation
+ * package registers keydown listeners via ctx.effect and removes them on
+ * cleanup. Follow the same pattern.
+ */
+function initZenShortcut(ctx: any): void {
+	ctx.effect(() => {
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+			if (e.key !== "z" && e.key !== "Z") return;
+			e.preventDefault();
+			// Zen view is mounted only while it is the active view
+			const inZen = typeof document !== "undefined" && document.querySelector(".dsh-zen-root") !== null;
+			switchView(inZen ? "chat" : "zen");
+		};
+		document.addEventListener("keydown", onKeyDown);
+		return () => document.removeEventListener("keydown", onKeyDown);
+	}, "zen-tracker: alt+z toggle");
+}
+
+/**
  * Mount the zen-tracker plugin.
  * @param ctx - client root context.
  */
@@ -79,6 +101,9 @@ function apply(ctx: any) {
 
 	// ── Auto Zen tab switcher ───────────────────────────────────────────
 	initAutoZenSwitcher(ctx, zenSettingsStore);
+
+	// ── Alt+Z: toggle Zen / chat view ───────────────────────────────────
+	initZenShortcut(ctx);
 
 	// ── MarkdownText component (from dsh-client-ui-primitives) ───────────
 	let MarkdownText: any = null;

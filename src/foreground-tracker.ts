@@ -64,9 +64,27 @@ export function formatDuration(ms: number): string {
 
 // ── tracker ────────────────────────────────────────────────────────────────
 
-export function initForegroundTracker(ctx: Context): SnapshotStore<ForegroundStoreState> & {
-	getLiveMs: () => { fgDelta: number; runDelta: number };
-} {
+interface TrackerHandle {
+	store: SnapshotStore<ForegroundStoreState> & {
+		getLiveMs: () => { fgDelta: number; runDelta: number };
+	};
+	/** Mark this tracker dead (called on ctx dispose). */
+	dispose(): void;
+	alive: boolean;
+}
+
+/** Window-level singleton — survives HMR/module re-evaluation & duplicate injection. */
+const g = globalThis as any;
+const WINDOW_KEY = "__dshZenTrackerStore";
+
+export function initForegroundTracker(ctx: Context): TrackerHandle["store"] {
+	if (g[WINDOW_KEY] && g[WINDOW_KEY].alive) return g[WINDOW_KEY].store;
+	if (g[WINDOW_KEY]) g[WINDOW_KEY].dispose();
+	g[WINDOW_KEY] = createTracker(ctx);
+	return g[WINDOW_KEY].store;
+}
+
+function createTracker(ctx: Context): TrackerHandle {
 	const sessions = (ctx as any).sessions as {
 		list: SnapshotStore<SessionListSnapshot>;
 	};
@@ -80,9 +98,10 @@ export function initForegroundTracker(ctx: Context): SnapshotStore<ForegroundSto
 				const parsed = JSON.parse(raw);
 				const out: Record<string, SessionStats> = {};
 				for (const [id, s] of Object.entries(parsed.sessions ?? {})) {
+					const src = (s ?? {}) as Record<string, unknown>;
 					out[id] = {
-						...s,
-						runningMs: (s as any).runningMs ?? (s as any).foregroundMs ?? 0,
+						...src,
+						runningMs: (src.runningMs as number) ?? (src.foregroundMs as number) ?? 0,
 					} as SessionStats;
 				}
 				return { sessions: out };
@@ -95,13 +114,54 @@ export function initForegroundTracker(ctx: Context): SnapshotStore<ForegroundSto
 	const listeners = new Set<() => void>();
 
 	const notify = () => { for (const fn of listeners) fn(); };
-	const persist = () => { try { localStorage.setItem(persistKey, JSON.stringify(state)); } catch { /* ignore */ } };
+
+	/**
+	 * Merge current state with whatever is in localStorage, taking the MAX of
+	 * every counter per session. Counters are monotonic (only ever grow), so
+	 * even if a stale duplicate instance writes an older snapshot, this merge
+	 * never lets the persisted/displayed totals go backwards (no more "清零").
+	 *
+	 * Sessions that exist in storage but neither in current state nor in the
+	 * live session list are dropped — this is what makes pruneIfNeeded()
+	 * effective instead of resurrecting every pruned session on next merge.
+	 */
+	const mergePersist = () => {
+		try {
+			let stored: Record<string, SessionStats> = {};
+			const raw = localStorage.getItem(persistKey);
+			if (raw) {
+				const parsed = JSON.parse(raw);
+				stored = parsed.sessions ?? {};
+			}
+			const liveIds = new Set(Object.keys(sessions.list.getSnapshot().byId));
+			const merged: Record<string, SessionStats> = {};
+			// 1. Sessions present in both storage and current state → max-merge.
+			for (const [id, s] of Object.entries(state.sessions)) {
+				const old = stored[id];
+				if (!old) { merged[id] = s; continue; }
+				merged[id] = {
+					foregroundMs: Math.max(old.foregroundMs ?? 0, s.foregroundMs ?? 0),
+					runningMs: Math.max(old.runningMs ?? 0, s.runningMs ?? 0),
+					sessionStartMs: Math.min(old.sessionStartMs ?? s.sessionStartMs, s.sessionStartMs),
+					sessionEndMs: s.sessionEndMs ?? old.sessionEndMs ?? null,
+					title: s.title || old.title || id,
+				};
+			}
+			// 2. Storage-only sessions: keep only if still in the live session list
+			//    (cross-window sync); drop the rest (pruned/abandoned).
+			for (const [id, s] of Object.entries(stored)) {
+				if (!merged[id] && liveIds.has(id)) merged[id] = s;
+			}
+			state = { sessions: merged };
+			localStorage.setItem(persistKey, JSON.stringify({ sessions: merged }));
+		} catch { /* ignore */ }
+	};
 
 	const store: SnapshotStore<ForegroundStoreState> = {
 		getSnapshot: () => state,
 		subscribe: (fn) => { listeners.add(fn); return () => { listeners.delete(fn); }; },
-		update: (updater) => { state = updater(state); persist(); notify(); },
-		set: (next) => { state = next; persist(); notify(); },
+		update: (updater) => { state = updater(state); mergePersist(); notify(); },
+		set: (next) => { state = next; mergePersist(); notify(); },
 	};
 
 	// ── tracking state: two independent segments ───────────────────────
@@ -250,6 +310,8 @@ export function initForegroundTracker(ctx: Context): SnapshotStore<ForegroundSto
 
 	// ── periodic flush ──────────────────────────────────────────────────
 
+	let alive = true;
+
 	const flushTimer = setInterval(() => {
 		if (activeSessionId !== null && (runSegStart !== null || fgSegStart !== null)) {
 			flush(activeSessionId, runSegStart, fgSegStart);
@@ -260,14 +322,46 @@ export function initForegroundTracker(ctx: Context): SnapshotStore<ForegroundSto
 		pruneIfNeeded();
 	}, FLUSH_INTERVAL_MS);
 
+	// Cross-window sync: another tab/instance wrote storage — merge its totals in
+	const onStorage = (e: StorageEvent) => {
+		if (e.key !== null && e.key !== persistKey) return;
+		mergePersist();
+		notify();
+	};
+
 	const unsubSessions = sessions.list.subscribe(() => reevaluate());
 
 	document.addEventListener("visibilitychange", onVisibilityChange);
 	window.addEventListener("focus", onFocus);
 	window.addEventListener("blur", onBlur);
 	window.addEventListener("pagehide", onPageHide);
+	window.addEventListener("storage", onStorage);
 
 	reevaluate();
+
+	const thisTracker: TrackerHandle = {
+		store: {
+			...store,
+			getLiveMs(): { fgDelta: number; runDelta: number; sessionId: SessionId | null } {
+				const now = Date.now();
+				return {
+					fgDelta: fgSegStart !== null ? Math.max(0, now - fgSegStart) : 0,
+					runDelta: runSegStart !== null ? Math.max(0, now - runSegStart) : 0,
+					sessionId: activeSessionId,
+				};
+			},
+		},
+		dispose() {
+			alive = false;
+			if (activeSessionId !== null) {
+				flush(activeSessionId, runSegStart, fgSegStart);
+				runSegStart = null;
+				fgSegStart = null;
+			}
+			if (g[WINDOW_KEY] === thisTracker) g[WINDOW_KEY] = null;
+		},
+		alive,
+	};
 
 	(ctx as any).effect(() => {
 		return () => {
@@ -275,6 +369,7 @@ export function initForegroundTracker(ctx: Context): SnapshotStore<ForegroundSto
 			window.removeEventListener("focus", onFocus);
 			window.removeEventListener("blur", onBlur);
 			window.removeEventListener("pagehide", onPageHide);
+			window.removeEventListener("storage", onStorage);
 			clearInterval(flushTimer);
 			unsubSessions();
 			if (activeSessionId !== null) {
@@ -282,17 +377,9 @@ export function initForegroundTracker(ctx: Context): SnapshotStore<ForegroundSto
 				runSegStart = null;
 				fgSegStart = null;
 			}
+			thisTracker.dispose();
 		};
 	}, "zen-tracker: foreground tracker");
 
-	return {
-		...store,
-		getLiveMs(): { fgDelta: number; runDelta: number } {
-			const now = Date.now();
-			return {
-				fgDelta: fgSegStart !== null ? Math.max(0, now - fgSegStart) : 0,
-				runDelta: runSegStart !== null ? Math.max(0, now - runSegStart) : 0,
-			};
-		},
-	};
+	return thisTracker;
 }
