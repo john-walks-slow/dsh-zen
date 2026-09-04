@@ -23,6 +23,13 @@ export interface SessionStats {
 	sessionStartMs: number;
 	sessionEndMs: number | null;
 	title: string;
+	/**
+	 * Per-day buckets keyed by local date "YYYY-MM-DD" — enables accurate
+	 * daily/weekly aggregation for sessions that span midnight. Absent on
+	 * legacy data (created before day bucketing); such sessions simply
+	 * contribute nothing to daily/weekly stats until they record new time.
+	 */
+	days?: Record<string, { fg: number; run: number }>;
 }
 
 export interface ForegroundStoreState {
@@ -64,6 +71,15 @@ export function formatDuration(ms: number): string {
 	const hr = Math.floor(min / 60);
 	const remMin = min % 60;
 	return remMin > 0 ? `${hr}h ${remMin}m` : `${hr}h`;
+}
+
+/** Local date key "YYYY-MM-DD" for a timestamp — lexicographic order == chronological. */
+export function dayKeyOf(ms: number): string {
+	const d = new Date(ms);
+	const y = d.getFullYear();
+	const m = String(d.getMonth() + 1).padStart(2, "0");
+	const day = String(d.getDate()).padStart(2, "0");
+	return `${y}-${m}-${day}`;
 }
 
 // ── tracker ────────────────────────────────────────────────────────────────
@@ -119,11 +135,32 @@ function createTracker(ctx: Context): TrackerHandle {
 
 	const notify = () => { for (const fn of listeners) fn(); };
 
+	/** Max-merge per-day buckets (monotonic counters, like the totals). */
+	function mergeDays(a: SessionStats["days"], b: SessionStats["days"]): SessionStats["days"] {
+		const keys = new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})]);
+		if (keys.size === 0) return undefined;
+		const out: NonNullable<SessionStats["days"]> = {};
+		for (const k of keys) {
+			const pa = a?.[k] ?? { fg: 0, run: 0 };
+			const pb = b?.[k] ?? { fg: 0, run: 0 };
+			out[k] = { fg: Math.max(pa.fg, pb.fg), run: Math.max(pa.run, pb.run) };
+		}
+		return out;
+	}
+
 	/**
 	 * Merge current state with whatever is in localStorage, taking the MAX of
 	 * every counter per session. Counters are monotonic (only ever grow), so
 	 * even if a stale duplicate instance writes an older snapshot, this merge
 	 * never lets the persisted/displayed totals go backwards (no more "清零").
+	 *
+	 * Known limitation (documented, not fixed): with multiple windows/tabs
+	 * accumulating the SAME session on the SAME day from different baselines,
+	 * both the totals and the day buckets can end up below the true sum (the
+	 * max-merge keeps the larger snapshot, dropping the other window's
+	 * increments). Single-window usage — the normal case — is exact. Tracking
+	 * this as tech debt; do not "fix" by switching buckets to additive merge,
+	 * which would double-count on every cross-window sync.
 	 *
 	 * Sessions that exist in storage but neither in current state nor in the
 	 * live session list are dropped — this is what makes pruneIfNeeded()
@@ -149,6 +186,7 @@ function createTracker(ctx: Context): TrackerHandle {
 					sessionStartMs: Math.min(old.sessionStartMs ?? s.sessionStartMs, s.sessionStartMs),
 					sessionEndMs: s.sessionEndMs ?? old.sessionEndMs ?? null,
 					title: s.title || old.title || id,
+					days: mergeDays(old.days, s.days),
 				};
 			}
 			// 2. Storage-only sessions: keep only if still in the live session list
@@ -188,7 +226,10 @@ function createTracker(ctx: Context): TrackerHandle {
 				sessionStartMs: now,
 				sessionEndMs: null,
 				title: sessionId,
+				days: {},
 			};
+			const dayKey = dayKeyOf(now);
+			const prevDay = existing.days?.[dayKey] ?? { fg: 0, run: 0 };
 			return {
 				sessions: {
 					...prev.sessions,
@@ -196,6 +237,13 @@ function createTracker(ctx: Context): TrackerHandle {
 						...existing,
 						foregroundMs: existing.foregroundMs + Math.max(0, fgDelta),
 						runningMs: (existing.runningMs ?? 0) + Math.max(0, runDelta),
+						days: {
+							...(existing.days ?? {}),
+							[dayKey]: {
+								fg: prevDay.fg + Math.max(0, fgDelta),
+								run: prevDay.run + Math.max(0, runDelta),
+							},
+						},
 					},
 				},
 			};
@@ -241,7 +289,7 @@ function createTracker(ctx: Context): TrackerHandle {
 			return {
 				sessions: {
 					...prev.sessions,
-					[sessionId]: { foregroundMs: 0, runningMs: 0, sessionStartMs: Date.now(), sessionEndMs: running ? null : Date.now(), title },
+					[sessionId]: { foregroundMs: 0, runningMs: 0, sessionStartMs: Date.now(), sessionEndMs: running ? null : Date.now(), title, days: {} },
 				},
 			};
 		});

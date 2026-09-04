@@ -7,7 +7,7 @@
 import React from "react";
 import type { ZenSettingsStore } from "../zen-settings";
 import type { ForegroundStoreState } from "../foreground-tracker";
-import { formatDuration } from "../foreground-tracker";
+import { dayKeyOf, formatDuration } from "../foreground-tracker";
 
 const CSS = `
 .dsh-zen-settings {
@@ -213,22 +213,24 @@ function startOfWeek(): number {
 function computePeriodStats(sessions: ForegroundStoreState["sessions"], sinceMs: number, liveDelta: { fgDelta: number; runDelta: number; sessionId: string | null }) {
 	let fgMs = 0;
 	let totalMs = 0;
+	const sinceKey = dayKeyOf(sinceMs);
 	for (const stats of Object.values(sessions)) {
-		const sessionStart = stats.sessionStartMs;
-		if (sessionStart < sinceMs) continue;
-		const run = stats.runningMs ?? 0;
-		const fg = Math.min(stats.foregroundMs ?? 0, run);
-		fgMs += fg;
-		totalMs += run;
+		// Sessions without day buckets (legacy data) contribute nothing to
+		// daily/weekly aggregates — they start counting from their next flush.
+		const days = stats.days;
+		if (!days) continue;
+		for (const [dayKey, d] of Object.entries(days)) {
+			if (dayKey < sinceKey) continue; // lexicographic == chronological (YYYY-MM-DD)
+			const run = d.run ?? 0;
+			const fg = Math.min(d.fg ?? 0, run);
+			fgMs += fg;
+			totalMs += run;
+		}
 	}
-	// Add live delta only when the currently active session belongs to this period.
-	// Otherwise (e.g. a session started yesterday and still running), its un-flushed
-	// increments must not leak into today's/week's totals.
-	const liveSession = liveDelta.sessionId ? sessions[liveDelta.sessionId] : null;
-	if (liveSession && liveSession.sessionStartMs >= sinceMs) {
-		fgMs += liveDelta.fgDelta;
-		totalMs += liveDelta.runDelta;
-	}
+	// Live (un-flushed) increments always belong to "now", which is inside this
+	// period (today or this week) by construction.
+	fgMs += liveDelta.fgDelta;
+	totalMs += liveDelta.runDelta;
 	fgMs = Math.min(fgMs, totalMs);
 	const ratio = totalMs > 0 ? Math.round((fgMs / totalMs) * 100) : 0;
 	const zenPct = 100 - ratio;
