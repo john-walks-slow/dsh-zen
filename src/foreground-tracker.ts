@@ -4,8 +4,10 @@
  * regardless of which view tab the user is on.
  *
  * Two independent counters:
- * - runningMs: accumulates whenever session.running=true (regardless of visibility)
- * - foregroundMs: accumulates only when running=true AND window visible AND not on Zen tab
+ * - runningMs: accumulates whenever session.running=true (regardless of visibility),
+ *   excluding periods when the agent is waiting on the user (pendingInteraction)
+ * - foregroundMs: accumulates only when running=true AND window visible AND not on Zen tab;
+ *   visibility does not require window focus (a visible but unfocused window still counts)
  *
  * @module dsh-zen-tracker/foreground-tracker
  */
@@ -41,6 +43,8 @@ interface SessionListSnapshot {
 		title?: string;
 		displayTitle: string;
 		running: boolean;
+		/** Set while the agent is waiting on the user (approval/choice/question). */
+		pendingInteraction?: string;
 	}>;
 }
 
@@ -245,12 +249,16 @@ function createTracker(ctx: Context): TrackerHandle {
 
 	function reevaluate(): void {
 		const isZenTabActive = typeof document !== "undefined" && document.querySelector(".dsh-zen-root") !== null;
-		const isWindowVisible = !isZenTabActive && typeof document !== "undefined" && !document.hidden && document.hasFocus();
+		// Foreground = visible & not on the Zen tab. Focus is NOT required: a window
+		// that is visible but unfocused still counts as screen-watching time.
+		const isWindowVisible = !isZenTabActive && typeof document !== "undefined" && !document.hidden;
 
 		const listSnap = sessions.list.getSnapshot();
 		const currentId = listSnap.current ?? null;
 		const currentSession = currentId ? listSnap.byId[currentId] : null;
-		const isRunning = currentSession?.running ?? false;
+		// Running excludes periods where the agent is waiting on the user
+		// (approval/choice/question) — that waiting is not task-running time.
+		const isRunning = (currentSession?.running ?? false) && !currentSession?.pendingInteraction;
 
 		for (const [id, summary] of Object.entries(listSnap.byId)) {
 			ensureSession(id, summary.displayTitle, summary.running);
