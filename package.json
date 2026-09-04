@@ -16,6 +16,7 @@
     "cordis.patch.yml",
     "assets/icon.svg",
     "README.md",
+    "README.zh-CN.md",
     "LICENSE"
   ],
   "scripts": {
@@ -49,7 +50,7 @@
       "displayName": "Zen Tracker",
       "icon": "assets/icon.svg",
       "categories": ["interface", "productivity"],
-      "screenshots": ["docs/screenshots/zen-view.png", "docs/screenshots/settings.png"]
+      "screenshots": ["docs/screenshots/zen-running.png", "docs/screenshots/zen-view.png", "docs/screenshots/settings.png"]
     }
   },
   "peerDependencies": {

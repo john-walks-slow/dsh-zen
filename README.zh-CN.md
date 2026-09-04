@@ -8,9 +8,9 @@
 
 ## 截图
 
-禅视图（完成态） | 设置面板 | 对话视图 + 隐藏按钮
+禅视图（生成中） | 禅视图（完成态） | 设置面板
 :---: | :---: | :---:
-![Zen view](docs/screenshots/zen-view.png) | ![Zen settings](docs/screenshots/settings.png) | ![Chat hide toggle](docs/screenshots/chat-hide.png)
+![Zen view（生成中）](docs/screenshots/zen-running.png) | ![Zen view（完成态）](docs/screenshots/zen-view.png) | ![Zen settings](docs/screenshots/settings.png)
 
 ## 功能
 

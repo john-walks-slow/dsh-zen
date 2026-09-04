@@ -11,9 +11,9 @@ actually watching the screen, and reports a daily / weekly Zen score.
 
 ## Screenshots
 
-Zen view (done state) | Settings | Chat view with the hide-toggle
+Zen view (while generating) | Zen view (done) | Zen settings
 :---: | :---: | :---:
-![Zen view](docs/screenshots/zen-view.png) | ![Zen settings](docs/screenshots/settings.png) | ![Chat hide toggle](docs/screenshots/chat-hide.png)
+![Zen view while generating](docs/screenshots/zen-running.png) | ![Zen view done](docs/screenshots/zen-view.png) | ![Zen settings](docs/screenshots/settings.png)
 
 ## Features
 

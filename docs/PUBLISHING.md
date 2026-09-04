@@ -45,7 +45,7 @@ DSH 官方对第三方插件的发现渠道是 GitHub `dsh-plugin` topic；除�
       "displayName": "Zen Tracker",
       "icon": "assets/icon.svg",
       "categories": ["interface", "productivity"],
-      "screenshots": ["docs/screenshots/zen-view.png", "docs/screenshots/settings.png"]
+      "screenshots": ["docs/screenshots/zen-running.png", "docs/screenshots/zen-view.png", "docs/screenshots/settings.png"]
     }
   }
 }
