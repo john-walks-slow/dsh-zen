@@ -63,7 +63,7 @@ dsh plugin --profile web add dsh-zen-tracker
 3. Optionally use the **隐藏中间过程** button in the session header to collapse
    intermediate process nodes in the chat view.
 4. Open **Settings → Zen 设置** to configure what is shown:
-   - 显示进行中文案 / 显示结束文案 — status message text on/off
+   - 显示进行中标题 / 显示进行中副标题 / 显示结束标题 — status message title/subtitle on/off
    - 生成中显示用户消息 / 生成中显示上轮回复 / 生成中显示动态 — hints shown while generating
    - 显示本轮轮次和用时 — the `步数 N · 用时 Nm` line
    - 显示盯屏时间统计 — the foreground stats tooltip

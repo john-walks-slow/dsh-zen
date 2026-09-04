@@ -547,8 +547,8 @@ export const ZenView = React.memo(function ZenView(props: ZenViewProps) {
 		// Status message (loading, running or done) — always mounted, fades via data-hidden
 		React.createElement("div", { className: "dsh-zen-center dsh-zen-statusCenter", "data-hidden": String(!showStatusCenter) },
 			React.createElement("div", { className: "dsh-zen-message" }, message),
-			// Second-line description temporarily hidden (keep code for re-enable)
-			// sub && React.createElement("div", { className: "dsh-zen-sub" }, sub),
+			// Second-line description, gated by the running-subtitle toggle
+			(isLoading || statusRunning) && settings.showRunningSub && sub && React.createElement("div", { className: "dsh-zen-sub" }, sub),
 		),
 		// User message blockquote (below status, above reply) — while generating only
 		!blank && !isLoading && userMsgVisible && React.createElement("blockquote", { className: "dsh-zen-userQuote" }, userMsg),

@@ -256,6 +256,7 @@ interface ToggleItem {
 
 const ITEMS: ToggleItem[] = [
 	{ key: "showRunningStatus", labelKey: "settings.showRunningStatus" },
+	{ key: "showRunningSub", labelKey: "settings.showRunningSub" },
 	{ key: "showDoneStatus", labelKey: "settings.showDoneStatus" },
 	{ key: "showUserMessage", labelKey: "settings.showUserMessage" },
 	{ key: "showPrevReply", labelKey: "settings.showPrevReply" },

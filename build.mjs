@@ -3,19 +3,29 @@
  * Bundles src/client.ts into the DSH browser module format:
  *   window.__ModuleLoader__.load({ id, factory })
  *
- * Also copies src/index.ts → lib/index.js (host-side empty apply).
+ * Also bundles src/index.ts → lib/index.js (host-side).
+ *
+ * pnpm link: on Windows creates broken junctions. The deploy step
+ * replaces the broken junction with real files.
+ * Node.js fs.rm is safe for junctions — removes the link, not the target.
  *
  * Usage: node build.mjs
  */
 import { build } from "esbuild";
-import { readFile, writeFile, mkdir, cp, rm } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { writeFile, mkdir, cp, rm, rmdir } from "node:fs/promises";
+import { existsSync, lstatSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const PKG_NAME = "dsh-zen-tracker";
+const ROOT = dirname(fileURLToPath(import.meta.url));
+const DSH_HOME = process.env.DSH_HOME || join(homedir(), ".dsh");
+const DEPLOY_DIR = join(DSH_HOME, "profiles", "web", "node_modules", PKG_NAME);
 
 // ── Build client bundle ──────────────────────────────────────────────────────
 const clientResult = await build({
-	entryPoints: ["src/client.ts"],
+	entryPoints: [join(ROOT, "src/client.ts")],
 	bundle: true,
 	format: "cjs",
 	target: "es2022",
@@ -45,13 +55,13 @@ const clientOutput = `window.__ModuleLoader__.load({
 });
 `;
 
-await mkdir("lib", { recursive: true });
-await writeFile("lib/client.js", clientOutput, "utf8");
+await mkdir(join(ROOT, "lib"), { recursive: true });
+await writeFile(join(ROOT, "lib/client.js"), clientOutput, "utf8");
 console.log("✓ Built lib/client.js");
 
 // ── Build host entry ──────────────────────────────────────────────────────────
 const hostResult = await build({
-	entryPoints: ["src/index.ts"],
+	entryPoints: [join(ROOT, "src/index.ts")],
 	bundle: true,
 	format: "esm",
 	target: "es2022",
@@ -60,27 +70,21 @@ const hostResult = await build({
 	minify: false,
 });
 
-await writeFile("lib/index.js", hostResult.outputFiles[0].text, "utf8");
+await writeFile(join(ROOT, "lib/index.js"), hostResult.outputFiles[0].text, "utf8");
 console.log("✓ Built lib/index.js");
 
-// ── Deploy to DSH profile node_modules ───────────────────────────────────────
-// Resolve the DSH home from $DSH_HOME (or the default ~/.dsh), then deploy into
-// the "web" profile. No machine-specific absolute paths in the repo.
-import { homedir } from "node:os";
-import { join } from "node:path";
-
-const dshHome = process.env.DSH_HOME || join(homedir(), ".dsh");
-const DEPLOY_DIR = join(dshHome, "profiles", "web", "node_modules", PKG_NAME);
-
-if (existsSync(DEPLOY_DIR)) {
-	try { await rm(DEPLOY_DIR, { recursive: true, force: true }); } catch {}
+// ── Deploy ──
+if (existsSync(DEPLOY_DIR) || lstatSync(DEPLOY_DIR, { throwIfNoEntry: false })?.isSymbolicLink()) {
+	try { await rmdir(DEPLOY_DIR); } catch {}
+	if (existsSync(DEPLOY_DIR)) {
+		try { await rm(DEPLOY_DIR, { recursive: true, force: true }); } catch {}
+	}
 }
-
 await mkdir(DEPLOY_DIR, { recursive: true });
-await cp("lib", `${DEPLOY_DIR}\\lib`, { recursive: true });
-await cp("assets", `${DEPLOY_DIR}\\assets`, { recursive: true });
-await cp("package.json", `${DEPLOY_DIR}\\package.json`);
-await cp("cordis.patch.yml", `${DEPLOY_DIR}\\cordis.patch.yml`);
-console.log("✓ Deployed to profile node_modules");
+await cp(join(ROOT, "lib"), join(DEPLOY_DIR, "lib"), { recursive: true });
+await cp(join(ROOT, "assets"), join(DEPLOY_DIR, "assets"), { recursive: true });
+await cp(join(ROOT, "package.json"), join(DEPLOY_DIR, "package.json"));
+await cp(join(ROOT, "cordis.patch.yml"), join(DEPLOY_DIR, "cordis.patch.yml"));
+console.log("✓ Deployed to", DEPLOY_DIR);
 
 console.log("\nBuild complete.");

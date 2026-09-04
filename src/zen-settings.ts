@@ -6,9 +6,11 @@
 const PERSIST_KEY = "dsh.zen-tracker.settings";
 
 export interface ZenSettings {
-	/** Show the running status message text */
+	/** Show the running status message title */
 	showRunningStatus: boolean;
-	/** Show the done status message text */
+	/** Show the running status subtitle (second line below the title) */
+	showRunningSub: boolean;
+	/** Show the done status message title */
 	showDoneStatus: boolean;
 	/** Show the last user message while generating */
 	showUserMessage: boolean;
@@ -30,6 +32,7 @@ export interface ZenSettings {
 
 const DEFAULTS: ZenSettings = {
 	showRunningStatus: true,
+	showRunningSub: true,
 	showDoneStatus: false,
 	showUserMessage: true,
 	showPrevReply: true,
