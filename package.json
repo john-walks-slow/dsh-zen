@@ -1,5 +1,5 @@
 {
-  "name": "dsh-zen-tracker",
+  "name": "dsh-zen",
   "version": "1.0.0",
   "description": "Zen Mode view tab + foreground time tracker for DeepSeek Harness",
   "type": "module",

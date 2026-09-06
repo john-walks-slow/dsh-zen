@@ -1,6 +1,6 @@
 # 发布指南（Publishing Guide）
 
-本文档记录 dsh-zen-tracker 的发布准备与上架流程。**本仓库尚未实际发布**——先按此文档准备，
+本文档记录 dsh-zen 的发布准备与上架流程。**本仓库尚未实际发布**——先按此文档准备，
 确认无误后再执行发布步骤。
 
 ## 1. 发布前检查清单
@@ -10,7 +10,7 @@
 - [x] 仓库文件整理（删除调试残留、死代码、pet 遗留资源）
 - [x] `package.json` 具备完整发布元数据：`name` / `version` / `description` / `license` /
       `keywords`（含 `dsh-plugin`、`deepseek-harness`）/ `files` / `dsh.bundle.patch`
-- [x] `cordis.patch.yml` 声明 bundle，行 ID `zen-tracker` 稳定且不冲突
+- [x] `cordis.patch.yml` 声明 bundle，行 ID `zen` 稳定且不冲突
 - [x] `lib/` 构建产物已提交（dsh.pub Git 分发路径要求提交运行时产物）
 - [x] `README.md` + `README.zh-CN.md`（含能力、安装、使用、卸载、License 说明）
 - [x] `LICENSE`（MIT）文件存在（`package.json` 的 `license` 字段不能替代仓库内许可证文件）
@@ -22,7 +22,7 @@
 
 - [ ] `version` 字段按发布语义递增（当前 `1.0.0`）
 - [ ] 在真实 `web` profile 中从**精确 commit** 安装验证一次
-  （`dsh plugin --profile web add github:<owner>/dsh-zen-tracker#<commit>`）
+  （`dsh plugin --profile web add github:<owner>/dsh-zen#<commit>`）
 - [ ] 仓库设置为 public（dsh.pub 与各商店均要求公开仓库）
 - [ ] 仓库与包名是你控制的名称，不暗示 DeepSeek 官方拥有
 - [ ] 发布 npm 前配置好 npm 账号与 token（本仓库当前未配置 `publishConfig`）
@@ -34,7 +34,7 @@ DSH 官方对第三方插件的发现渠道是 GitHub `dsh-plugin` topic；除�
 
 ```jsonc
 {
-  "name": "dsh-zen-tracker",
+  "name": "dsh-zen",
   "version": "1.0.0",
   "description": "Zen Mode view tab + foreground time tracker for DeepSeek Harness",
   "keywords": ["dsh-plugin", "deepseek-harness", "zen", "focus", "productivity"],
@@ -86,7 +86,7 @@ DSH 官方对第三方插件的发现渠道是 GitHub `dsh-plugin` topic；除�
 本地验证（发布前）：
 
 ```sh
-npx dshpub add <owner>/dsh-zen-tracker --ref <40字符commit> --profile web
+npx dshpub add <owner>/dsh-zen --ref <40字符commit> --profile web
 dsh --profile web --dump-config   # 确认 bundle 作为命名层出现
 dsh --profile web                 # 确认行解析、Host 挂载、UI 渲染
 ```
@@ -96,7 +96,7 @@ dsh --profile web                 # 确认行解析、Host 挂载、UI 渲染
 官方产品页把社区插件指向 <https://github.com/topics/dsh-plugin>。做法：
 
 ```sh
-gh repo edit <owner>/dsh-zen-tracker --add-topic dsh-plugin
+gh repo edit <owner>/dsh-zen --add-topic dsh-plugin
 ```
 
 仅打 topic 不会自动上任何商店，但它是官方口径下的基础可发现性，建议必做。
@@ -113,7 +113,7 @@ npm publish
 
 - 包名不占用、版本号符合语义化（当前 `1.0.0`）。
 - `files` 已限定为 `lib/`、`cordis.patch.yml`、`assets/icon.svg`、README、LICENSE。
-- npm 发布后，`dsh plugin --profile web add dsh-zen-tracker` 即可安装。
+- npm 发布后，`dsh plugin --profile web add dsh-zen` 即可安装。
 
 ## 6. 第三方商店/注册表清单
 
@@ -155,7 +155,7 @@ npm publish
 2. `npm publish`（如需 npm 渠道）。
 3. 推送 public 仓库并打 `dsh-plugin` topic。
 4. 走 dsh.pub 提交页发 PR，等待自动合并与目录生成。
-5. 记录各商店收录状态；更新 `README` 中的安装命令（若 npm 可用则加 `dsh plugin add dsh-zen-tracker`）。
+5. 记录各商店收录状态；更新 `README` 中的安装命令（若 npm 可用则加 `dsh plugin add dsh-zen`）。
 
 > 安全提示：第三方商店的收录不等于安全审计。发布前自行复查 `cordis.patch.yml` 作用范围
 > 与 `lib/` 产物内容；安装第三方插件等同于执行第三方代码。

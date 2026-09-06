@@ -1,5 +1,5 @@
 /**
- * Client plugin body for dsh-zen-tracker.
+ * Client plugin body for dsh-zen.
  *
  * Registers:
  * 1. Foreground time tracker (global, tab-independent)
@@ -7,7 +7,7 @@
  * 3. Chat-hide toggle in conversation.session.header.actions
  * 4. Zen settings section in settings.section (id="zen", order=50)
  *
- * @module dsh-zen-tracker/client
+ * @module dsh-zen/client
  */
 
 import { NS, zh, en } from "./locales";
@@ -18,7 +18,7 @@ import { ChatHideToggle, switchView } from "./components/ChatHideToggle";
 import { ZenSettingsSection } from "./components/ZenSettingsSection";
 
 /** Cordis plugin name. */
-const name = "zen-tracker";
+const name = "zen";
 
 /** Required services. */
 const inject = ["slots", "sessions", "locale"];
@@ -59,7 +59,7 @@ function initAutoZenSwitcher(ctx: any, zenSettingsStore: ZenSettingsStore): void
 	const unsub = sessions.list.subscribe(check);
 	check();
 
-	ctx.effect(() => () => unsub(), "zen-tracker: auto zen switcher");
+	ctx.effect(() => () => unsub(), "zen: auto zen switcher");
 }
 
 /**
@@ -81,16 +81,16 @@ function initZenShortcut(ctx: any): void {
 		};
 		document.addEventListener("keydown", onKeyDown);
 		return () => document.removeEventListener("keydown", onKeyDown);
-	}, "zen-tracker: alt+z toggle");
+	}, "zen: alt+z toggle");
 }
 
 /**
- * Mount the zen-tracker plugin.
+ * Mount the zen plugin.
  * @param ctx - client root context.
  */
 function apply(ctx: any) {
 	// ── Locale dictionaries ──────────────────────────────────────────────
-	ctx.effect(() => ctx.locale.register(NS, { zh, en }), "zen-tracker: dictionaries");
+	ctx.effect(() => ctx.locale.register(NS, { zh, en }), "zen: dictionaries");
 	const t = ctx.locale.bind(NS);
 
 	// ── Foreground tracker (global, not tab-bound) ───────────────────────

@@ -6,7 +6,7 @@
  * that hide tool-call, command, compaction, model-retry, turn-error,
  * turn-max-tokens nodes and reasoning rows.
  *
- * @module dsh-zen-tracker/components/ChatHideToggle
+ * @module dsh-zen/components/ChatHideToggle
  */
 
 import React from "react";
@@ -79,16 +79,16 @@ body[data-chat-hide="on"] [data-chat-flow-kind="assistant-step"] .Sxvs8a_body { 
 `;
 
 // Inject CSS once
-if (typeof document !== "undefined" && !document.querySelector("style[data-plugin-css=\"dsh-zen-tracker/chat-hide\"]")) {
+if (typeof document !== "undefined" && !document.querySelector("style[data-plugin-css=\"dsh-zen/chat-hide\"]")) {
 	const tag = document.createElement("style");
-	tag.setAttribute("data-plugin-css", "dsh-zen-tracker/chat-hide");
+	tag.setAttribute("data-plugin-css", "dsh-zen/chat-hide");
 	tag.textContent = CSS;
 	document.head.appendChild(tag);
 }
 
 // ── persisted toggle state ──────────────────────────────────────────────────
 
-const PERSIST_KEY = "dsh.zen-tracker.chat-hide";
+const PERSIST_KEY = "dsh.zen.chat-hide";
 
 function loadToggleState(): boolean {
 	try {

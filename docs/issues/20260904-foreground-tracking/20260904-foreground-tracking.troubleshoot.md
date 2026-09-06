@@ -6,10 +6,10 @@
 
 ## 复现与验证
 
-- playwright 打开 http://127.0.0.1:3080（Edge headed），`window["__dshZenTrackerStore"]` alive，
+- playwright 打开 http://127.0.0.1:3080（Edge headed），`window["__dshZenStore"]` alive，
   `getLiveMs()` 返回 `{fgDelta, runDelta, sessionId}` 结构正常。
 - 打开会话并发消息后，tracker 正常累计（复现任务 189s 记入对应会话），**tracker 核心无故障**。
-- 部署产物（`$DSH_HOME/profiles/web/node_modules/dsh-zen-tracker/lib/client.js`，59535B）与
+- 部署产物（`$DSH_HOME/profiles/web/node_modules/dsh-zen/lib/client.js`，59535B）与
   `lib/client.js` 一致，无过期构建问题。
 - 页面状态实测：`document.hidden=false`、`document.hasFocus()` 因窗口/页面状态可能为 `false`。
 

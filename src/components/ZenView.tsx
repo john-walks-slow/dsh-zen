@@ -5,7 +5,7 @@
  * Done: emoji + AI reply (markdown).
  * Bottom: stats row + user message row.
  *
- * @module dsh-zen-tracker/components/ZenView
+ * @module dsh-zen/components/ZenView
  */
 
 import React from "react";
@@ -265,9 +265,9 @@ const CSS = `
 }
 `;
 
-if (typeof document !== "undefined" && !document.querySelector("style[data-plugin-css=\"dsh-zen-tracker/zen-view\"]")) {
+if (typeof document !== "undefined" && !document.querySelector("style[data-plugin-css=\"dsh-zen/zen-view\"]")) {
 	const tag = document.createElement("style");
-	tag.setAttribute("data-plugin-css", "dsh-zen-tracker/zen-view");
+	tag.setAttribute("data-plugin-css", "dsh-zen/zen-view");
 	tag.textContent = CSS;
 	document.head.appendChild(tag);
 }

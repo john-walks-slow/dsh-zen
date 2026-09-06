@@ -1,7 +1,7 @@
 /**
  * ZenSettingsSection — settings panel for configuring Zen view display.
  * Shows daily/weekly Zen stats and Zen level.
- * @module dsh-zen-tracker/components/ZenSettingsSection
+ * @module dsh-zen/components/ZenSettingsSection
  */
 
 import React from "react";
@@ -163,9 +163,9 @@ const CSS = `
 }
 `;
 
-if (typeof document !== "undefined" && !document.querySelector("style[data-plugin-css=\"dsh-zen-tracker/settings\"]")) {
+if (typeof document !== "undefined" && !document.querySelector("style[data-plugin-css=\"dsh-zen/settings\"]")) {
 	const tag = document.createElement("style");
-	tag.setAttribute("data-plugin-css", "dsh-zen-tracker/settings");
+	tag.setAttribute("data-plugin-css", "dsh-zen/settings");
 	tag.textContent = CSS;
 	document.head.appendChild(tag);
 }

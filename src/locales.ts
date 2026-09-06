@@ -1,10 +1,10 @@
 /**
- * Locale dictionaries for the `zen-tracker` namespace.
- * @module dsh-zen-tracker/locales
+ * Locale dictionaries for the `zen` namespace.
+ * @module dsh-zen/locales
  */
 
 /** Dictionary namespace owned by this plugin. */
-export const NS = "zen-tracker";
+export const NS = "zen";
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {

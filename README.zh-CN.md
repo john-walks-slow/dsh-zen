@@ -1,4 +1,4 @@
-# dsh-zen-tracker
+# dsh-zen
 
 为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）打造的 **禅（Zen）模式视图** + **前台盯屏时间统计** 插件。
 
@@ -34,10 +34,10 @@
 ### 从 Git 仓库安装（推荐）
 
 ```sh
-dsh plugin --profile web add github:<owner>/dsh-zen-tracker#<40位commit>
+dsh plugin --profile web add github:<owner>/dsh-zen#<40位commit>
 ```
 
-然后重启 `dsh web`。bundle 补丁（`cordis.patch.yml`）会把 `zen-tracker` 行插入 profile 组合，
+然后重启 `dsh web`。bundle 补丁（`cordis.patch.yml`）会把 `zen` 行插入 profile 组合，
 Web 客户端由已提交的 `lib/client.js` 提供。
 
 > 建议固定完整 commit 哈希，避免分支被强推导致安装内容漂移。
@@ -46,7 +46,7 @@ Web 客户端由已提交的 `lib/client.js` 提供。
 ### 从 npm 安装（发布后可用）
 
 ```sh
-dsh plugin --profile web add dsh-zen-tracker
+dsh plugin --profile web add dsh-zen
 ```
 
 ## 使用
@@ -87,7 +87,7 @@ host 侧改动需要重启 DSH。
 │   └── components/          # ZenView、ChatHideToggle、ZenSettingsSection
 ├── lib/                     # 已提交的构建产物（client factory bundle + host）
 ├── assets/icon.svg          # 插件图标
-├── cordis.patch.yml         # bundle 补丁：插入 zen-tracker 行
+├── cordis.patch.yml         # bundle 补丁：插入 zen 行
 ├── build.mjs                # esbuild 打包 + 部署
 └── docs/                    # 截图与发布指南
 ```
@@ -97,17 +97,17 @@ host 侧改动需要重启 DSH。
 - 需要带 Web 客户端模块系统的 DeepSeek Harness（默认 `web` profile）。
 - 使用的 slot 契约：`conversation.view`、`conversation.session.header.actions`、
   `settings.section`。升级 Harness 版本时请对照对应源码快照核验。
-- 所有数据保存在客户端 `localStorage`（`dsh.zen-tracker.*`），不向任何地方发送。
+- 所有数据保存在客户端 `localStorage`（`dsh.zen.*`），不向任何地方发送。
   无服务器、无遥测。
 
 ## 卸载
 
 ```sh
-dsh plugin --profile web remove dsh-zen-tracker
+dsh plugin --profile web remove dsh-zen
 ```
 
 或从 profile 组合中移除对应行。如需清除数据，删除 `localStorage` 中前缀为
-`dsh.zen-tracker.` 的键。
+`dsh.zen.` 的键。
 
 ## License
 

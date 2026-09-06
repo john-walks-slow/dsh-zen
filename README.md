@@ -1,4 +1,4 @@
-# dsh-zen-tracker
+# dsh-zen
 
 A Zen Mode view tab + foreground time tracker for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH).
 
@@ -41,10 +41,10 @@ This plugin is distributed as a DSH bundle. It requires a Web-capable profile (t
 ### From a Git repository (recommended)
 
 ```sh
-dsh plugin --profile web add github:<owner>/dsh-zen-tracker#<40-character-commit>
+dsh plugin --profile web add github:<owner>/dsh-zen#<40-character-commit>
 ```
 
-Then restart `dsh web`. The bundle patch (`cordis.patch.yml`) inserts the `zen-tracker` row
+Then restart `dsh web`. The bundle patch (`cordis.patch.yml`) inserts the `zen` row
 into the profile's composition, and the Web client is served from the committed `lib/client.js`.
 
 > Prefer pinning the exact commit hash; a floating branch can be force-pushed. See
@@ -53,7 +53,7 @@ into the profile's composition, and the Web client is served from the committed 
 ### From npm (once published)
 
 ```sh
-dsh plugin --profile web add dsh-zen-tracker
+dsh plugin --profile web add dsh-zen
 ```
 
 ## Usage
@@ -95,7 +95,7 @@ changes need a page refresh; host-side changes need a DSH restart.
 │   └── components/          # ZenView, ChatHideToggle, ZenSettingsSection
 ├── lib/                     # Committed build artifacts (client factory bundle + host)
 ├── assets/icon.svg          # Plugin icon
-├── cordis.patch.yml         # Bundle patch: inserts the zen-tracker row
+├── cordis.patch.yml         # Bundle patch: inserts the zen row
 ├── build.mjs                # esbuild bundler + deploy
 └── docs/                    # Screenshots and publishing guide
 ```
@@ -105,17 +105,17 @@ changes need a page refresh; host-side changes need a DSH restart.
 - Requires DeepSeek Harness with the Web client module system (default `web` profile).
 - Slot contracts used: `conversation.view`, `conversation.session.header.actions`,
   `settings.section`. Verify against your Harness version's source snapshot if upgrading.
-- All data is stored client-side in `localStorage` (`dsh.zen-tracker.*`); nothing is sent
+- All data is stored client-side in `localStorage` (`dsh.zen.*`); nothing is sent
   anywhere. 无服务器、无遥测。
 
 ## Uninstall
 
 ```sh
-dsh plugin --profile web remove dsh-zen-tracker
+dsh plugin --profile web remove dsh-zen
 ```
 
 Or remove the row from the profile composition. Stored stats/settings in `localStorage`
-can be cleared by deleting keys prefixed `dsh.zen-tracker.`.
+can be cleared by deleting keys prefixed `dsh.zen.`.
 
 ## License
 

@@ -1,9 +1,9 @@
 /**
  * ZenSettingsStore — persisted configuration for what to show in Zen view.
- * @module dsh-zen-tracker/zen-settings
+ * @module dsh-zen/zen-settings
  */
 
-const PERSIST_KEY = "dsh.zen-tracker.settings";
+const PERSIST_KEY = "dsh.zen.settings";
 
 export interface ZenSettings {
 	/** Show the running status message title */

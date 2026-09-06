@@ -9,7 +9,7 @@
  * - foregroundMs: accumulates only when running=true AND window visible AND not on Zen tab;
  *   visibility does not require window focus (a visible but unfocused window still counts)
  *
- * @module dsh-zen-tracker/foreground-tracker
+ * @module dsh-zen/foreground-tracker
  */
 
 import type { Context } from "@deepseek-ai/cordis";
@@ -95,7 +95,7 @@ interface TrackerHandle {
 
 /** Window-level singleton — survives HMR/module re-evaluation & duplicate injection. */
 const g = globalThis as any;
-const WINDOW_KEY = "__dshZenTrackerStore";
+const WINDOW_KEY = "__dshZenStore";
 
 export function initForegroundTracker(ctx: Context): TrackerHandle["store"] {
 	if (g[WINDOW_KEY] && g[WINDOW_KEY].alive) return g[WINDOW_KEY].store;
@@ -109,7 +109,7 @@ function createTracker(ctx: Context): TrackerHandle {
 		list: SnapshotStore<SessionListSnapshot>;
 	};
 
-	const persistKey = "dsh.zen-tracker.stats";
+	const persistKey = "dsh.zen.stats";
 
 	const loadInitial = (): ForegroundStoreState => {
 		try {
@@ -435,7 +435,7 @@ function createTracker(ctx: Context): TrackerHandle {
 			}
 			thisTracker.dispose();
 		};
-	}, "zen-tracker: foreground tracker");
+	}, "zen: foreground tracker");
 
 	return thisTracker;
 }
