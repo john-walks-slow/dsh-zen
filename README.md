@@ -22,7 +22,7 @@ Zen view (while generating) | Zen view (done) | Zen settings
   - your user message (while generating), the previous round's reply and live activity hints
   - the final AI reply rendered with markdown
   - one-line turn stats: `步数 N · 用时 Nm · 统计`
-- **Foreground time tracker** — records foreground (focused window) vs. total running time
+- **Foreground time tracker** — records foreground (visible window) vs. total running time
   per session, persisted in `localStorage`. Daily / weekly **Zen score** (`100% − 盯屏比例`)
   is shown in the settings panel.
 - **Chat hide toggle** — a header button (`隐藏中间过程`) that hides tool-call, command,
@@ -41,7 +41,7 @@ This plugin is distributed as a DSH bundle. It requires a Web-capable profile (t
 ### From a Git repository (recommended)
 
 ```sh
-dsh plugin --profile web add github:<owner>/dsh-zen#<40-character-commit>
+dsh plugin --profile web add github:john-walks-slow/dsh-zen#<40-character-commit>
 ```
 
 Then restart `dsh web`. The bundle patch (`cordis.patch.yml`) inserts the `zen` row
@@ -53,7 +53,7 @@ into the profile's composition, and the Web client is served from the committed 
 ### From npm (once published)
 
 ```sh
-dsh plugin --profile web add dsh-zen
+dsh plugin --profile web add @johnnren/dsh-zen
 ```
 
 ## Usage
@@ -105,13 +105,14 @@ changes need a page refresh; host-side changes need a DSH restart.
 - Requires DeepSeek Harness with the Web client module system (default `web` profile).
 - Slot contracts used: `conversation.view`, `conversation.session.header.actions`,
   `settings.section`. Verify against your Harness version's source snapshot if upgrading.
-- All data is stored client-side in `localStorage` (`dsh.zen.*`); nothing is sent
-  anywhere. 无服务器、无遥测。
+- **Zero permissions**: no network requests, no file system access, no external
+  services — the host face is an empty `apply()` and all data stays in browser
+  `localStorage` (`dsh.zen.*`). 无网络请求、无文件写入、无外部服务、无遥测。
 
 ## Uninstall
 
 ```sh
-dsh plugin --profile web remove dsh-zen
+dsh plugin --profile web remove @johnnren/dsh-zen
 ```
 
 Or remove the row from the profile composition. Stored stats/settings in `localStorage`

@@ -8,7 +8,7 @@ This project is a **Web UI + Host** plugin (bundle delivery track):
 
 - Host face: `src/index.ts` → `lib/index.js` (empty `apply`, bundle row only)
 - Web client: `src/client.ts` → `lib/client.js` (factory bundle via `window.__ModuleLoader__.load`)
-- Activation: `cordis.patch.yml` inserts row `zen` → `dsh-zen`
+- Activation: `cordis.patch.yml` inserts row `zen` → `@johnnren/dsh-zen`
 
 ## Commands
 

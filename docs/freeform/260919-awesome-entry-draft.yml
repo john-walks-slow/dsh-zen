@@ -1,0 +1,15 @@
+# awesome-dsh-plugin 投稿草稿（data/plugins/john-walks-slow__dsh-zen.yml）
+# 前置：仓库满 1 天（首批提交 2026-09-01）且 ≥10 commits（当前 13）✓；需给仓库打 topic `dsh-plugin`。
+# 流程：fork awesome-dsh-plugin → 只加这一个文件 → PR。两个 README 由脚本生成，勿手改。
+# 分类说明：awesome 分类表（agi/ui/usage/theme/...）没有 interface/productivity——那是 dsh.market
+#   的另一套体系。本插件按实际功能（Zen 视图标签页 + 隐藏中间过程 + 设置分区）归 `ui`；
+#   分类不贴会被维护者直接改，不会打回。
+# 注意：description 含 ": " 必须加引号；描述会被对着代码核，只写实际行为。
+# 搜索机制（dsh-market 实测源码）：只索引 name/npm/owner/description(en+zh)/category，
+#   不索引 README 与 npm keywords——双语描述 keyword 密集是唯一搜索优化面。
+url: https://github.com/john-walks-slow/dsh-zen
+name: john-walks-slow/dsh-zen
+category: ui
+description:
+  en: 'Zen Mode view tab and foreground time tracker for DeepSeek Harness: while the agent works, a calm conversation view shows running/done status, your latest user message, live activity hints and the final AI reply in markdown with one-line turn stats, plus screen-watching (focus) time tracking with daily/weekly Zen scores, a chat-hide toggle that hides tool calls and reasoning rows, auto enter/exit Zen on task start/complete, an Alt+Z shortcut and a Zen settings panel — pure client-side, stored in localStorage, no network.'
+  zh: '禅模式视图 + 前台盯屏时间统计插件：智能体后台运行时提供极简 Zen 标签页（进行中/结束状态文案、用户消息、动态提示、Markdown 渲染最终回复、单行轮次统计），统计前台盯屏时长并给出每日/每周禅值，支持一键隐藏中间过程（工具调用/推理行）、任务开始完成时自动进出禅、Alt+Z 快捷键与 Zen 设置面板——纯前端实现，数据存 localStorage，无网络请求。'

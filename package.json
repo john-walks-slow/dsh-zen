@@ -1,7 +1,7 @@
 {
-  "name": "dsh-zen",
+  "name": "@johnnren/dsh-zen",
   "version": "1.0.0",
-  "description": "Zen Mode view tab + foreground time tracker for DeepSeek Harness",
+  "description": "Zen Mode view tab + foreground time tracker for DeepSeek Harness: a calm minimal surface (status message, latest user message, live activity hints, markdown AI reply, one-line turn stats) while the agent works, with screen-watching time tracking, daily/weekly Zen scores, a chat-hide toggle, auto enter/exit and an Alt+Z shortcut — pure client-side, no network. dsh-zen 禅模式插件：智能体后台运行时提供极简的 Zen 视图标签页（状态文案、用户消息、动态提示、Markdown 最终回复、单行轮次统计），并统计前台盯屏时长、给出每日/每周禅值，支持隐藏中间过程、自动进出禅与 Alt+Z 快捷键——纯前端、无网络请求。",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {
@@ -17,7 +17,8 @@
     "assets/icon.svg",
     "README.md",
     "README.zh-CN.md",
-    "LICENSE"
+    "LICENSE",
+    "docs/screenshots"
   ],
   "scripts": {
     "build": "node build.mjs",
@@ -29,10 +30,22 @@
     "deepseek-harness",
     "zen",
     "focus",
-    "foreground-tracker",
-    "productivity"
+    "productivity",
+    "time-tracking",
+    "禅模式",
+    "专注",
+    "时间追踪"
   ],
   "license": "MIT",
+  "author": "JohnnRen",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/john-walks-slow/dsh-zen.git"
+  },
+  "homepage": "https://github.com/john-walks-slow/dsh-zen#readme",
+  "bugs": {
+    "url": "https://github.com/john-walks-slow/dsh-zen/issues"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -59,9 +72,10 @@
   },
   "devDependencies": {
     "@types/react": "^18.3.1",
+    "esbuild": "^0.28.2",
     "typescript": "^5.9.3"
   },
-  "dependencies": {
-    "esbuild": "^0.28.2"
+  "publishConfig": {
+    "access": "public"
   }
 }

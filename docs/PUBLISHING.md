@@ -25,7 +25,8 @@
   （`dsh plugin --profile web add github:<owner>/dsh-zen#<commit>`）
 - [ ] 仓库设置为 public（dsh.pub 与各商店均要求公开仓库）
 - [ ] 仓库与包名是你控制的名称，不暗示 DeepSeek 官方拥有
-- [ ] 发布 npm 前配置好 npm 账号与 token（本仓库当前未配置 `publishConfig`）
+- [x] npm 包名定为 scoped 包 `@johnnren/dsh-zen`（裸名 `dsh-zen` 已被他人占用），`publishConfig.access: "public"` 已配置（scoped 包默认私有，须显式公开）
+- [ ] 发布 npm 前配置好 npm 账号与 token
 
 ## 2. 生态概览：DSH 插件如何被发现
 
@@ -34,10 +35,10 @@ DSH 官方对第三方插件的发现渠道是 GitHub `dsh-plugin` topic；除�
 
 ```jsonc
 {
-  "name": "dsh-zen",
+  "name": "@johnnren/dsh-zen",
   "version": "1.0.0",
   "description": "Zen Mode view tab + foreground time tracker for DeepSeek Harness",
-  "keywords": ["dsh-plugin", "deepseek-harness", "zen", "focus", "productivity"],
+  "keywords": ["dsh", "dsh-plugin", "deepseek-harness", "zen", "focus", "productivity", "time-tracking", "禅模式", "专注", "时间追踪"],
   "license": "MIT",
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },   // 硬门槛：可安装的 bundle
@@ -111,9 +112,9 @@ npm publish
 
 发布前：
 
-- 包名不占用、版本号符合语义化（当前 `1.0.0`）。
+- npm 名使用 scoped 包 `@johnnren/dsh-zen`（裸名 `dsh-zen` 已被他人占用）；scoped 包默认私有，发布必须 `publishConfig.access: "public"`（已配置）。版本号符合语义化（当前 `1.0.0`）。
 - `files` 已限定为 `lib/`、`cordis.patch.yml`、`assets/icon.svg`、README、LICENSE。
-- npm 发布后，`dsh plugin --profile web add dsh-zen` 即可安装。
+- npm 发布后，`dsh plugin --profile web add @johnnren/dsh-zen` 即可安装。
 
 ## 6. 第三方商店/注册表清单
 
@@ -155,7 +156,7 @@ npm publish
 2. `npm publish`（如需 npm 渠道）。
 3. 推送 public 仓库并打 `dsh-plugin` topic。
 4. 走 dsh.pub 提交页发 PR，等待自动合并与目录生成。
-5. 记录各商店收录状态；更新 `README` 中的安装命令（若 npm 可用则加 `dsh plugin add dsh-zen`）。
+5. 记录各商店收录状态；更新 `README` 中的安装命令（若 npm 可用则加 `dsh plugin add @johnnren/dsh-zen`）。
 
 > 安全提示：第三方商店的收录不等于安全审计。发布前自行复查 `cordis.patch.yml` 作用范围
 > 与 `lib/` 产物内容；安装第三方插件等同于执行第三方代码。

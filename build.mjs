@@ -1,5 +1,5 @@
 /**
- * Build script for dsh-zen.
+ * Build script for @johnnren/dsh-zen.
  * Bundles src/client.ts into the DSH browser module format:
  *   window.__ModuleLoader__.load({ id, factory })
  *
@@ -18,10 +18,10 @@ import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PKG_NAME = "dsh-zen";
+const PKG_NAME = "@johnnren/dsh-zen";
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), ".dsh");
-const DEPLOY_DIR = join(DSH_HOME, "profiles", "web", "node_modules", PKG_NAME);
+const DEPLOY_DIR = join(DSH_HOME, "profiles", "web", "node_modules", ...PKG_NAME.split("/"));
 
 // ── Build client bundle ──────────────────────────────────────────────────────
 const clientResult = await build({

@@ -19,7 +19,7 @@
   - 生成中的用户消息、上轮回复与动态提示
   - 最终 AI 回复（Markdown 渲染）
   - 一行本轮统计：`步数 N · 用时 Nm · 统计`
-- **前台盯屏统计** —— 按会话记录「窗口聚焦」时长与「运行」总时长，持久化在 `localStorage`。
+- **前台盯屏统计** —— 按会话记录「窗口可见」时长与「运行」总时长，持久化在 `localStorage`。
   设置面板展示每日 / 每周 **禅值**（`100% − 盯屏比例`）与当前禅等级。
 - **隐藏中间过程按钮** —— 会话头部按钮（`隐藏中间过程`），通过 CSS 一键隐藏对话视图中的
   工具调用、命令、上下文注入、压缩、推理行等中间节点。
@@ -34,7 +34,7 @@
 ### 从 Git 仓库安装（推荐）
 
 ```sh
-dsh plugin --profile web add github:<owner>/dsh-zen#<40位commit>
+dsh plugin --profile web add github:john-walks-slow/dsh-zen#<40位commit>
 ```
 
 然后重启 `dsh web`。bundle 补丁（`cordis.patch.yml`）会把 `zen` 行插入 profile 组合，
@@ -46,7 +46,7 @@ Web 客户端由已提交的 `lib/client.js` 提供。
 ### 从 npm 安装（发布后可用）
 
 ```sh
-dsh plugin --profile web add dsh-zen
+dsh plugin --profile web add @johnnren/dsh-zen
 ```
 
 ## 使用
@@ -97,13 +97,13 @@ host 侧改动需要重启 DSH。
 - 需要带 Web 客户端模块系统的 DeepSeek Harness（默认 `web` profile）。
 - 使用的 slot 契约：`conversation.view`、`conversation.session.header.actions`、
   `settings.section`。升级 Harness 版本时请对照对应源码快照核验。
-- 所有数据保存在客户端 `localStorage`（`dsh.zen.*`），不向任何地方发送。
-  无服务器、无遥测。
+- **零权限**：无网络请求、无文件写入、无外部服务——host 面是空的 `apply()`，
+  所有数据保存在浏览器 `localStorage`（`dsh.zen.*`），无遥测。
 
 ## 卸载
 
 ```sh
-dsh plugin --profile web remove dsh-zen
+dsh plugin --profile web remove @johnnren/dsh-zen
 ```
 
 或从 profile 组合中移除对应行。如需清除数据，删除 `localStorage` 中前缀为
