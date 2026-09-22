@@ -271,30 +271,6 @@ function createTracker(ctx: Context): TrackerHandle {
 		store.set({ sessions: kept });
 	}
 
-	function ensureSession(sessionId: SessionId, title: string, running: boolean): void {
-		store.update((prev) => {
-			if (prev.sessions[sessionId]) {
-				const existing = prev.sessions[sessionId];
-				if (existing.sessionEndMs === null && !running) {
-					return { sessions: { ...prev.sessions, [sessionId]: { ...existing, title, sessionEndMs: Date.now() } } };
-				}
-				if (existing.sessionEndMs !== null && running) {
-					return { sessions: { ...prev.sessions, [sessionId]: { ...existing, title, sessionEndMs: null } } };
-				}
-				if (existing.title !== title) {
-					return { sessions: { ...prev.sessions, [sessionId]: { ...existing, title } } };
-				}
-				return prev;
-			}
-			return {
-				sessions: {
-					...prev.sessions,
-					[sessionId]: { foregroundMs: 0, runningMs: 0, sessionStartMs: Date.now(), sessionEndMs: running ? null : Date.now(), title, days: {} },
-				},
-			};
-		});
-	}
-
 	function reevaluate(): void {
 		const isZenTabActive = typeof document !== "undefined" && document.querySelector(".dsh-zen-root") !== null;
 		// Foreground = visible & not on the Zen tab. Focus is NOT required: a window
@@ -308,9 +284,32 @@ function createTracker(ctx: Context): TrackerHandle {
 		// (approval/choice/question) — that waiting is not task-running time.
 		const isRunning = (currentSession?.running ?? false) && !currentSession?.pendingInteraction;
 
+		// Batch all sessions into ONE store update. Every store.set/update runs a
+		// synchronous localStorage read+write (mergePersist), so per-session
+		// ensureSession calls cost N blocking storage roundtrips per snapshot
+		// change — and reevaluate fires on every list change, focus and blur,
+		// which made the main thread jank hard while any agent was running.
+		let next = state;
 		for (const [id, summary] of Object.entries(listSnap.byId)) {
-			ensureSession(id, summary.displayTitle, summary.running);
+			const title = summary.displayTitle;
+			const existing = next.sessions[id];
+			if (!existing) {
+				next = { sessions: { ...next.sessions, [id]: { foregroundMs: 0, runningMs: 0, sessionStartMs: Date.now(), sessionEndMs: summary.running ? null : Date.now(), title, days: {} } } };
+				continue;
+			}
+			if (existing.sessionEndMs === null && !summary.running) {
+				next = { sessions: { ...next.sessions, [id]: { ...existing, title, sessionEndMs: Date.now() } } };
+				continue;
+			}
+			if (existing.sessionEndMs !== null && summary.running) {
+				next = { sessions: { ...next.sessions, [id]: { ...existing, title, sessionEndMs: null } } };
+				continue;
+			}
+			if (existing.title !== title) {
+				next = { sessions: { ...next.sessions, [id]: { ...existing, title } } };
+			}
 		}
+		if (next !== state) store.set(next);
 
 		// Session switch — flush old session, reset
 		if (currentId !== activeSessionId) {
